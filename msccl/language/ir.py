@@ -629,7 +629,7 @@ def dump_to_json(program: Program):
                         "srcbuff": op.src.buffer.value if op.src.buffer else None,
                         "dstbuff": op.dst.buffer.value if op.dst.buffer else None,
                         "dstoff": op.dst.index if op.dst else None,
-                        "srcs": list(map(lambda x: {"buff": x.buffer, "off": x.index}, op.srcs)),
+                        "srcs": list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs)),
                         "cnt": op.cnt(),
                     }
                 elif op.inst == Instruction.reduce:
@@ -638,7 +638,7 @@ def dump_to_json(program: Program):
                         "srcbuff": op.src.buffer.value if op.src.buffer else None,
                         "dstbuff": op.dst.buffer.value if op.dst.buffer else None,
                         "dstoff": op.dst.index if op.dst else None,
-                        "srcs": list(map(lambda x: {"buff": x.buffer, "off": x.index}, op.srcs)),
+                        "srcs": list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs)),
                         "cnt": op.cnt(),
                     }
                 elif op.inst == Instruction.nop:

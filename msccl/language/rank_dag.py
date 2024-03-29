@@ -265,11 +265,13 @@ class InstructionDAG:
             for tbid, tb in rank_tbs.items():
                 chans = set()
                 for op in tb.ops:
+                    src_buffer = Buffer.scratch if op.src.buffer is not Buffer.input and op.src.buffer is not Buffer.output else op.src.buffer
+                    dst_buffer = Buffer.scratch if op.dst.buffer is not Buffer.input and op.dst.buffer is not Buffer.output else op.dst.buffer
                     if op.inst in send_op:
-                        chan = Channel(op.src.buffer, op.dst.buffer, op.channel_type, op.dst.rank)
+                        chan = Channel(src_buffer, dst_buffer, op.channel_type, op.dst.rank)
                         chans.add(chan)
                     elif op.inst in recv_op:
-                        chan = Channel(op.dst.buffer, op.src.buffer, op.channel_type, op.src.rank)
+                        chan = Channel(dst_buffer, src_buffer, op.channel_type, op.src.rank)
                         chans.add(chan)
                 tb.channels = list(chans)
 
@@ -590,8 +592,8 @@ class InstructionDAG:
                     op.dst = self.lower_chunk(op.dst)
                     srcs = sorted(op.srcs, key=lambda x: x[1])
                     dsts = sorted(op.dsts, key=lambda x: x[1])
-                    op.srcs = [src[0] for src in srcs]
-                    op.dsts = [dst[0] for dst in dsts]
+                    op.srcs = [self.lower_chunk(src[0]) for src in srcs]
+                    op.dsts = [self.lower_chunk(dst[0]) for dst in dsts]
                 lowered_tbs[tbid] = tb
             gpus.append(Gpu(rank, list(lowered_tbs.values())))
         return gpus
