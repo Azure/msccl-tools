@@ -373,7 +373,7 @@ class Ref(ChunkRef):
         self.prog.apply_reduce(src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size)
 
         if src != dst:
-            self.prog.instr_dag.add_read_reduce_copy(dst, other_chunkref, self, recvtb, channel_type)
+            self.prog.instr_dag.add_read_reduce(dst, other_chunkref, self, recvtb, channel_type)
         else:
             self.prog.instr_dag.add_reduce(src, other_chunkref, self, sendtb, ChannelType.none)
 

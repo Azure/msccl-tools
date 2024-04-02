@@ -223,9 +223,9 @@ class InstructionDAG:
         op.send_match = send_op
         return op
 
-    def add_read_reduce_copy(self, rank, send_ref, recv_ref, tb, ch_type):
+    def add_read_reduce(self, rank, send_ref, recv_ref, tb, ch_type):
         tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.read_reduce_copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel_type=ch_type, step=tb_step)
+        op = Op(Instruction.read_reduce, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel_type=ch_type, step=tb_step)
         buffer = recv_ref.buffer
         index = recv_ref.index
         size = recv_ref.size
@@ -260,7 +260,7 @@ class InstructionDAG:
 
     def complete_channels(self):
         send_op = [Instruction.put, Instruction.signal]
-        recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
+        recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce]
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
                 chans = set()
@@ -293,7 +293,7 @@ class InstructionDAG:
                                 break
                         if fused:
                             continue
-                    elif op.inst == Instruction.reduce or op.inst == Instruction.read_reduce_copy or op.inst == Instruction.copy:
+                    elif op.inst == Instruction.reduce or op.inst == Instruction.read_reduce or op.inst == Instruction.copy:
                         fused = False
                         for prev_op in op.prev:
                             if prev_op.inst == Instruction.wait:
@@ -314,10 +314,10 @@ class InstructionDAG:
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
-                    if op.inst == Instruction.read_reduce_copy:
+                    if op.inst == Instruction.read_reduce:
                         fused = False
                         for next_op in op.next:
-                            if next_op.inst == Instruction.read_reduce_copy and same_count(op, next_op) and same_buf_dst(op, next_op) and same_chan_type(op, next_op):
+                            if next_op.inst == Instruction.read_reduce and same_count(op, next_op) and same_buf_dst(op, next_op) and same_chan_type(op, next_op):
                                 op.srcs.append((ChunkRef(next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size), next_op.step))
                                 remove_op(next_op)
                                 tb.ops.remove(next_op)
@@ -374,14 +374,14 @@ class InstructionDAG:
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
-                    if op.inst == Instruction.read_reduce_copy or op.inst == Instruction.read_reduce_copy_send:
+                    if op.inst == Instruction.read_reduce or op.inst == Instruction.read_reduce_send:
                         fused = False
                         for next_op in op.next:
                             if next_op.inst == Instruction.put and same_count(op, next_op) and buf_dst_src_match(op, next_op) and same_chan_type(op, next_op):
                                 if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                                     continue
-                                if op.inst == Instruction.read_reduce_copy:
-                                    op.inst = Instruction.read_reduce_copy_send
+                                if op.inst == Instruction.read_reduce:
+                                    op.inst = Instruction.read_reduce_send
                                 op.dsts.append((ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size), next_op.step))
                                 remove_op(next_op)
                                 tb.ops.remove(next_op)
