@@ -542,32 +542,32 @@ def dump_to_json(program: Program):
     for id, gpu in enumerate(program.gpus):
         gpu_instance = {
             'id': id,
-            'input_chunks': gpu.input_chunks,
-            'output_chunks': gpu.output_chunks,
-            'scratch_chunks': gpu.scratch_chunks,
+            'inputChunks': gpu.input_chunks,
+            'outputChunks': gpu.output_chunks,
+            'scratchChunks': gpu.scratch_chunks,
             'threadblocks': [],
             "channels": []
         }
         for (srcBuffer, dstBuffer, type), channels in gpu.channels.items():
             obj = {
-                "srcBuffer": srcBuffer.name if hasattr(srcBuffer, 'name') else srcBuffer,
-                "dstBuffer": dstBuffer.name if hasattr(dstBuffer, 'name') else dstBuffer,
-                "type": type.name,
+                "srcbuff": srcBuffer.value if hasattr(srcBuffer, 'value') else srcBuffer,
+                "dstbuff": dstBuffer.value if hasattr(dstBuffer, 'value') else dstBuffer,
+                "type": type.value,
                 "connectedTo": [eles[1] for eles in channels]
             }
             gpu_instance["channels"].append(obj)
         gpu_instance["channels"] = list(filter(lambda x: x["type"] != "none", gpu_instance["channels"]))
         for tb in gpu.threadblocks:
-            if tb.id == -1:
+            if tb.id < 0:
                 continue
             ops = []
             tb_channels = []
             tb_channel_dict = {}
             for (srcBuffer, dstBuffer, type), channels in gpu.channels.items():
                 obj = {
-                    "srcBuffer": srcBuffer.value if hasattr(srcBuffer, 'name') else srcBuffer,
-                    "dstBuffer": dstBuffer.value if hasattr(dstBuffer, 'name') else dstBuffer,
-                    "type": type.name,
+                    "srcbuff": srcBuffer.value if hasattr(srcBuffer, 'value') else srcBuffer,
+                    "dstbuff": dstBuffer.value if hasattr(dstBuffer, 'value') else dstBuffer,
+                    "type": type.value,
                     "chanIds": [id for id, ele in enumerate(channels) if ele[0] == tb.id],
                     "connectedTo": [ele[1] for ele in channels if ele[0] == tb.id],
                 }
@@ -684,7 +684,7 @@ def dump_to_json(program: Program):
             threadblock = {
                 'id': tb.id,
                 'ops': ops,
-                'channels': list(map(lambda x: {"src": x["srcBuffer"], "dst": x["dstBuffer"], "ctype": x["type"], "cid": x["chanIds"]}, tb_channels))
+                'channels': list(map(lambda x: {"src": x["srcbuff"], "dst": x["dstbuff"], "ctype": x["type"], "cid": x["chanIds"]}, tb_channels))
             }
             gpu_instance['threadblocks'].append(threadblock)
         gpus.append(gpu_instance)
