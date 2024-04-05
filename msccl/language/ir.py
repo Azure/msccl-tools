@@ -117,8 +117,8 @@ class Instruction(Enum):
     recv_reduce_send = 'rrs'
     recv_reduce_copy = 'rrc'
     recv_reduce_copy_send = 'rrcs'
-    read_reduce = "rr"
-    read_reduce_send = "rrs"
+    read_reduce_copy = "rrc"
+    read_reduce_copy_send = "rrcs"
     reduce_send = 'rs'
     copy = 'cpy'
     reduce = 're'
@@ -247,7 +247,7 @@ _local_dst_insts = {Instruction.recv, Instruction.recv_copy_send, Instruction.re
                     Instruction.recv_reduce_copy_send}
 
 _local_src_insts_mscclpp = {Instruction.put, Instruction.signal, Instruction.copy, Instruction.reduce, Instruction.reduce_send}
-_local_dst_insts_mscclpp = {Instruction.get, Instruction.wait, Instruction.read_reduce, Instruction.copy, Instruction.reduce, Instruction.read_reduce_send, Instruction.reduce_send}
+_local_dst_insts_mscclpp = {Instruction.get, Instruction.wait, Instruction.read_reduce_copy, Instruction.copy, Instruction.reduce, Instruction.read_reduce_copy_send, Instruction.reduce_send}
 
 
 def ir_to_xml(program: Program, old_format=True, use_scratch=True, pretty_print=True, dependence_nop=False):
@@ -455,7 +455,7 @@ def ir_to_json(program: Program, dependence_nop=False):
                     buffer_sizes[key] = max(
                         buffer_sizes[key], op.dst.index + op.dst.size)
                     # ignore remote buffers
-                    if op.inst != Instruction.read_reduce_send and op.inst != Instruction.reduce_send:
+                    if op.inst != Instruction.read_reduce_copy_send and op.inst != Instruction.reduce_send:
                         for dst in op.dsts:
                             key = (gpu.rank, dst.buffer)
                             buffer_sizes[key] = max(
@@ -595,16 +595,17 @@ def dump_to_json(program: Program):
                     # get src channel ids
                     src_channel_ids = get_channel_ids(op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
-                elif op.inst == Instruction.read_reduce:
+                elif op.inst == Instruction.read_reduce_copy:
                     src_channel_ids = get_channel_ids(op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     dst = op.dst
-                elif op.inst == Instruction.read_reduce_send:
+                elif op.inst == Instruction.read_reduce_copy_send:
                     src_channel_ids = get_channel_ids(op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     dst_channel_ids = get_channel_ids(op.dsts, tb_channel_dict, op.dst.buffer, op.dsts[0].buffer, op.channel_type)
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     o_buff = {"src": op.dst.buffer.value, "dst": op.dsts[0].buffer.value}
                     dst = op.dst
+                    src = op.dst # the src is the same as dst
                 elif op.inst == Instruction.reduce_send:
                     dst_channel_ids = get_channel_ids(op.dsts, tb_channel_dict,  op.dst.buffer, op.dsts[0].buffer, ChannelType.sm)
                     o_buff = {"src": op.dst.buffer.value, "dst": op.dsts[0].buffer.value}
@@ -647,7 +648,7 @@ def dump_to_json(program: Program):
             threadblock = {
                 'id': tb.id,
                 'ops': ops,
-                'channels': list(map(lambda x: {"src": x["srcbuff"], "dst": x["dstbuff"], "ctype": x["type"], "cid": x["chanIds"]}, tb_channels))
+                'channels': list(map(lambda x: {"src": x["srcbuff"], "dst": x["dstbuff"], "ctype": x["type"], "cids": x["chanIds"]}, tb_channels))
             }
             gpu_instance['threadblocks'].append(threadblock)
         gpus.append(gpu_instance)
