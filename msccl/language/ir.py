@@ -120,11 +120,15 @@ class Instruction(Enum):
     read_reduce_copy = "rrc"
     read_reduce_copy_send = "rrcs"
     reduce_send = 'rs'
+    reduce_send_packet = 'rspkt'
     copy = 'cpy'
+    copy_packet = 'cpkt'
     reduce = 're'
+    reduce_packet = 'rpkt'
     delete = 'd'
     start = 'st'
     put = 'put'
+    put_packet = 'ppkt'
     get = 'get'
     wait = 'wait'
     signal = 'signal'
@@ -501,7 +505,7 @@ def ir_to_json(program: Program, dependence_nop=False):
 
     # Do some additional postprocessing of operations:
     # - Expand operations with dependencies with no-ops
-    if program.protocol != "LL": # ignore the dependence_nop for LL protocol
+    if program.protocol != "LL": # (TODO(binyli): fix it) ignore the dependence_nop for LL protocol
         for gpu in program.gpus:
             for tb in gpu.threadblocks:
                 new_ops = []
@@ -599,18 +603,20 @@ def dump_to_json(program: Program):
                     src_channel_ids = get_channel_ids(op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     dst = op.dst
+                    src = op.dst # TODO(binyli): fix this
                 elif op.inst == Instruction.read_reduce_copy_send:
                     src_channel_ids = get_channel_ids(op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     dst_channel_ids = get_channel_ids(op.dsts, tb_channel_dict, op.dst.buffer, op.dsts[0].buffer, op.channel_type)
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     o_buff = {"src": op.dst.buffer.value, "dst": op.dsts[0].buffer.value}
                     dst = op.dst
-                    src = op.dst # the src is the same as dst
-                elif op.inst == Instruction.reduce_send:
+                    src = op.dst # TODO(binyli): fix this
+                elif op.inst == Instruction.reduce_send or op.inst == Instruction.reduce_send_packet:
                     dst_channel_ids = get_channel_ids(op.dsts, tb_channel_dict,  op.dst.buffer, op.dsts[0].buffer, ChannelType.sm)
                     o_buff = {"src": op.dst.buffer.value, "dst": op.dsts[0].buffer.value}
                     srcs = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs))
                     dst = op.dst
+                    src = op.dst # TODO(binyli): fix this
                 elif op.inst == Instruction.reduce:
                     srcs = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs))
                     dst = op.dst
@@ -619,13 +625,16 @@ def dump_to_json(program: Program):
                         "name": op.inst.value,
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends))
                     }
-                elif op.inst == Instruction.put:
+                elif op.inst == Instruction.put or op.inst == Instruction.put_packet:
                     dst_channel_ids = get_channel_ids([op.dst], tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     o_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     src = op.src
                 elif op.inst == Instruction.get:
                     src_channel_ids = get_channel_ids([op.src], tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type)
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
+                    dst = op.dst
+                elif op.inst == Instruction.copy or op.inst == Instruction.copy_packet:
+                    src = op.src
                     dst = op.dst
                 if op.inst != Instruction.nop:
                     instr = {

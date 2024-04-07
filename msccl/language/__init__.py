@@ -241,6 +241,31 @@ class Ref(ChunkRef):
             self.prog.instr_dag.add_signal(sender, self, dst_chunkref, -1, ChannelType.none)
             self.prog.instr_dag.add_wait(receiver, dst_chunkref, self, -1, ChannelType.none)
 
+    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
+        self.prog.check_buffer_exists(dst, buffer)
+        sender = self.rank
+        receiver = dst
+        assert sender != receiver, 'Cannot put to the same rank'
+
+        # If index is not specified assume it is going to the same place in the next gpu
+        if index == -1 and buffer == None:
+            index = self.index
+            buffer = self.buffer
+        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
+            index = self.prog.buffers[dst][buffer].instance_size()
+
+        # Some inplace collectives have custom logic for buffers and index (ReduceScatter, AllGather)
+        buffer, index = self.prog.collective.get_buffer_index(self.rank, buffer, index)
+
+        # Direct put
+        assert (self.prog.topo.link(self.rank, dst) or dst == self.rank), f'No link from {self.rank} to {dst}'
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+
+        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+        self.prog.instr_dag.add_put_packet(sender, self, dst_chunkref, sendtb, channel_type)
+        self.prog.instr_dag.add_signal(sender, self, dst_chunkref, -1, ChannelType.none)
+        self.prog.instr_dag.add_wait(receiver, dst_chunkref, self, -1, ChannelType.none)
+
     def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
         self.prog.check_buffer_exists(src, buffer)
         sender = src
@@ -340,6 +365,35 @@ class Ref(ChunkRef):
 
         return dst_chunkref
 
+    def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
+        self.prog.check_buffer_exists(dst, buffer)
+
+        # If index is not specified assume it is going to the same place in the next gpu
+        if index == -1 and buffer == None:
+            index = self.index
+            buffer = self.buffer
+        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
+            index = self.prog.buffers[dst][buffer].instance_size()
+
+        # Some inplace collectives have custom logic for buffers and index (ReduceScatter, AllGather)
+        buffer, index = self.prog.collective.get_buffer_index(self.rank, buffer, index)
+
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+
+        # Check if we are copying the chunk to the same index (easy mistake when we are using inplace)
+        if dst_chunkref == self:
+            return
+
+        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+
+        # self.prog.chunk_dag.add_send(chunks, overwritten_chunks, self, dst_chunkref, sendtb, recvtb, ch)
+        sender = self.rank
+        receiver = dst
+        assert sender == receiver, 'Packet copy only supports intra-rank communication'
+        self.prog.instr_dag.add_copy_packet(sender, self, dst_chunkref, sendtb)
+
+        return dst_chunkref
+
     # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
     def reduce(self, other_chunkref, sendtb=-1, recvtb=-1, ch=-1):
         # Receive reduce copy
@@ -377,6 +431,16 @@ class Ref(ChunkRef):
         else:
             self.prog.instr_dag.add_reduce(src, other_chunkref, self, sendtb, ChannelType.none)
 
+        return self
+
+    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
+    def reduce_packet(self, other_chunkref, sendtb=-1):
+        # Receive reduce copy
+        dst = self.rank
+        src = other_chunkref.rank
+        assert dst == src, 'Packet reduce only supports intra-rank communication'
+        self.prog.apply_reduce(src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size)
+        self.prog.instr_dag.add_reduce_packet(src, other_chunkref, self, sendtb)
         return self
 
     def get_origin_index(self, index=0):

@@ -134,6 +134,20 @@ class InstructionDAG:
         self._write(rank, dstbuffer, dstindex, size, op)
         return op
 
+    def add_copy_packet(self, rank, send_ref, recv_ref, tb):
+        tb_step = self._get_tb_step(rank, tb)
+        op = Op(Instruction.copy_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        dstbuffer = recv_ref.buffer
+        dstindex = recv_ref.index
+        srcbuffer = send_ref.buffer
+        srcindex = send_ref.index
+        size = recv_ref.size
+        # Sending part of copy [Read]
+        self._read(rank, srcbuffer, srcindex, size, op)
+        # Receiving part of copy [Write]
+        self._write(rank, dstbuffer, dstindex, size, op)
+        return op
+
     # InstructionDAG - adds a redduce node
     def add_reduce(self, rank, send_ref, recv_ref, tb, ch):
         tb_step = self._get_tb_step(rank, tb)
@@ -144,6 +158,22 @@ class InstructionDAG:
         srcindex = send_ref.index
         size = recv_ref.size
         prev_ops = []
+        op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
+        # Sending part of reduce
+        self._read(rank, srcbuffer, srcindex, size, op)
+        # Reduce part of copy
+        self._write(rank, dstbuffer, dstindex, size, op, read=True)
+        return op
+
+    # InstructionDAG - adds a redduce packet node
+    def add_reduce_packet(self, rank, send_ref, recv_ref, tb):
+        tb_step = self._get_tb_step(rank, tb)
+        op = Op(Instruction.reduce_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        dstbuffer = recv_ref.buffer
+        dstindex = recv_ref.index
+        srcbuffer = send_ref.buffer
+        srcindex = send_ref.index
+        size = recv_ref.size
         op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
         # Sending part of reduce
         self._read(rank, srcbuffer, srcindex, size, op)
@@ -164,6 +194,15 @@ class InstructionDAG:
     def add_put(self, rank, send_ref, recv_ref, tb, ch_type):
         tb_step = self._get_tb_step(rank, tb)
         op = Op(Instruction.put, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel_type=ch_type, step=tb_step)
+        buffer = send_ref.buffer
+        index = send_ref.index
+        size = send_ref.size
+        self._read(rank, buffer, index, size, op)
+        return op
+
+    def add_put_packet(self, rank, send_ref, recv_ref, tb, ch_type):
+        tb_step = self._get_tb_step(rank, tb)
+        op = Op(Instruction.put_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel_type=ch_type, step=tb_step)
         buffer = send_ref.buffer
         index = send_ref.index
         size = send_ref.size
@@ -259,7 +298,7 @@ class InstructionDAG:
         self._optimize_rcs()
 
     def complete_channels(self):
-        send_op = [Instruction.put, Instruction.signal]
+        send_op = [Instruction.put, Instruction.signal, Instruction.put_packet]
         recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
@@ -275,16 +314,14 @@ class InstructionDAG:
                         chans.add(chan)
                 tb.channels = list(chans)
 
-    def _optimize_redandant_signal_wait(self, protocol):
-        if protocol != 'LL':
-            return
-        # For LL algorithm, we can remove signal/wait
+    def _optimize_redandant_signal_wait(self):
+        # For packet ops, we can remove signal/wait
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
-                    if op.inst == Instruction.put:
+                    if op.inst == Instruction.put_packet:
                         fused = False
                         for next_op in op.next:
                             if next_op.inst == Instruction.signal:
@@ -293,7 +330,7 @@ class InstructionDAG:
                                 break
                         if fused:
                             continue
-                    elif op.inst == Instruction.reduce or op.inst == Instruction.read_reduce_copy or op.inst == Instruction.copy:
+                    elif op.inst == Instruction.reduce_packet or op.inst == Instruction.copy_packet:
                         fused = False
                         for prev_op in op.prev:
                             if prev_op.inst == Instruction.wait:
@@ -308,6 +345,7 @@ class InstructionDAG:
     # signal(_,_,_,dst,dbuf,di) signal(_,_,_,dst,dbuf,di) -> signal(_,_,_,list[dst,dbuf,di])
     # wait(src,sbuf,si,_,_,_) wait(src,sbuf,si,_,_,_) -> wait(list[src,sbuf,si],_,_,_,_])
     # reduce(_,_,_,dst,dbuf,di) reduce(_,_,_,dst,dbuf,di) -> reduce(list[src,sbuf,si], dst, dbuf, di)
+    # reduce_packet(_,_,_,dst,dbuf,di) reduce_packet(_,_,_,dst,dbuf,di) -> reduce_packet(list[src,sbuf,si], dst, dbuf, di)
     def _optimize_rrc_r_signal_wait(self):
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
@@ -330,6 +368,18 @@ class InstructionDAG:
                         fused = False
                         for next_op in op.next:
                             if next_op.inst == Instruction.reduce and same_buf_dst(op, next_op) and same_chan_type(op, next_op):
+                                op.srcs.append((ChunkRef(next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size), next_op.step))
+                                remove_op(next_op)
+                                tb.ops.remove(next_op)
+                                queue.remove(next_op)
+                                fused = True
+                                break
+                        if fused:
+                            continue
+                    elif op.inst == Instruction.reduce_packet:
+                        fused = False
+                        for next_op in op.next:
+                            if next_op.inst == Instruction.reduce_packet and same_buf_dst(op, next_op) and same_chan_type(op, next_op):
                                 op.srcs.append((ChunkRef(next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size), next_op.step))
                                 remove_op(next_op)
                                 tb.ops.remove(next_op)
@@ -406,6 +456,22 @@ class InstructionDAG:
                                 break
                         if fused:
                             continue
+                    if op.inst == Instruction.reduce_packet or op.inst == Instruction.reduce_send_packet:
+                        fused = False
+                        for next_op in op.next:
+                            if next_op.inst == Instruction.put_packet and same_count(op, next_op) and buf_dst_src_match(op, next_op):
+                                if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
+                                    continue
+                                if op.inst == Instruction.reduce_packet:
+                                    op.inst = Instruction.reduce_send_packet
+                                op.dsts.append((ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size), next_op.step))
+                                remove_op(next_op)
+                                tb.ops.remove(next_op)
+                                queue.remove(next_op)
+                                fused = True
+                                break
+                        if fused:
+                            continue
                     queue = queue[1:]
 
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
@@ -448,7 +514,7 @@ class InstructionDAG:
                     queue = queue[1:]
 
     def optimize_mscclpp(self, protocol):
-        self._optimize_redandant_signal_wait(protocol)
+        self._optimize_redandant_signal_wait()
         self._optimize_rrc_r_signal_wait()
         self._optimize_rrcs_rs()
 
