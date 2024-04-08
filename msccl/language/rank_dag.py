@@ -47,6 +47,7 @@ def same_buf_src(op1, op2):
 def same_chan_type(op1, op2):
     return op1.channel_type == op2.channel_type
 
+# TODO:(binyli): Need to treat it as base class. For MSCCLPP/MSCCL implement different methods
 class InstructionDAG:
     def __init__(self, num_ranks, buffers):
         self.num_ranks = num_ranks
@@ -148,15 +149,13 @@ class InstructionDAG:
 
     # InstructionDAG - adds a redduce node
     def add_reduce(self, rank, send_ref, recv_ref, tb, ch):
-        tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.reduce, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch, step=tb_step)
+        op = Op(Instruction.reduce, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         dstbuffer = recv_ref.buffer
         dstindex = recv_ref.index
         srcbuffer = send_ref.buffer
         srcindex = send_ref.index
         size = recv_ref.size
         prev_ops = []
-        op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
         # Sending part of reduce
         self._read(rank, srcbuffer, srcindex, size, op)
         # Reduce part of copy
@@ -192,18 +191,32 @@ class InstructionDAG:
         return op
 
     # InstructionDAG - adds a put node
-    def add_put(self, rank, send_ref, recv_ref, tb, ch_type):
+    def add_put(self, rank, send_ref, recv_ref, tb, ch_type, use_packet = False):
         tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.put, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel_type=ch_type, step=tb_step)
-        buffer = send_ref.buffer
-        index = send_ref.index
-        size = send_ref.size
-        self._read(rank, buffer, index, size, op)
-        return op
-
-    def add_put_packet(self, rank, send_ref, recv_ref, tb, ch_type):
-        tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.put_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel_type=ch_type, step=tb_step)
+        if use_packet:
+            op = Op(
+                Instruction.put_packet,
+                rank,
+                send_ref,
+                recv_ref,
+                next=set(),
+                prev=set(),
+                tb=tb,
+                channel_type=ch_type,
+                step=tb_step,
+            )
+        else:
+            op = Op(
+                Instruction.put,
+                rank,
+                send_ref,
+                recv_ref,
+                next=set(),
+                prev=set(),
+                tb=tb,
+                channel_type=ch_type,
+                step=tb_step,
+            )
         buffer = send_ref.buffer
         index = send_ref.index
         size = send_ref.size
@@ -544,7 +557,6 @@ class InstructionDAG:
             if op.inst == Instruction.start:
                 dfs(op,-2) # Start instructions should start at -1
 
-
     # Given the set of operations that operate over a particular slot (rank, buffer, idx) fixed
     # Try and replace operations with pipelined ops like receive copy send (rcs)
     # or receive reduce send (rrs) and receive reduce copy send (rrcs)
@@ -665,7 +677,6 @@ class InstructionDAG:
                 lowered_tbs[tbid] = tb
             gpus.append(Gpu(rank, list(lowered_tbs.values())))
         return gpus
-
 
     # Automatically replicates the algorithm instance number of times
     # interleaved sets the replication policy

@@ -173,35 +173,27 @@ class Ref(ChunkRef):
             return buffer, self.prog.buffers[remote_rank][buffer].instance_size()
         return buffer, index
 
-    def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
+    def _put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False):
         self.prog.check_buffer_exists(dst, buffer)
-        sender = self.rank
-        receiver = dst
-        assert sender != receiver, "Cannot put to the same rank"
+        assert self.rank != dst, "Cannot put to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
         # Direct put
         assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-        self.prog.instr_dag.add_put(sender, self, dst_chunkref, sendtb, chan_type)
+        if use_packet:
+            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, use_packet)
+            self.prog.instr_dag.add_signal(self.rank, self, dst_chunkref, -1, ChannelType.none)
+            self.prog.instr_dag.add_wait(dst, dst_chunkref, self, -1, ChannelType.none)
+        else:
+            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type)
+
+    def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
+        self._put(dst, buffer, index, sendtb, chan_type)
 
     def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
-        self.prog.check_buffer_exists(dst, buffer)
-        sender = self.rank
-        receiver = dst
-        assert sender != receiver, "Cannot put to the same rank"
-        buffer, index = self._get_buffer_index(dst, buffer, index)
-
-        # Direct put
-        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
-        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-
-        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-        self.prog.instr_dag.add_put_packet(sender, self, dst_chunkref, sendtb, channel_type)
-        self.prog.instr_dag.add_signal(sender, self, dst_chunkref, -1, ChannelType.none)
-        self.prog.instr_dag.add_wait(receiver, dst_chunkref, self, -1, ChannelType.none)
+        return self._put(dst, buffer, index, sendtb, channel_type, use_packet=True)
 
     def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
         self.prog.check_buffer_exists(src, buffer)
