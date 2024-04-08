@@ -11,24 +11,25 @@ from msccl.language.chunk import *
 from msccl.language.buffer import *
 from msccl.language.rank_dag import *
 import msccl.collectives as collectives
+import msccl.language.mscclpp as mscclpp
+from msccl.language.mscclpp import *
+
 # from msccl.language.visualize import *
 
 _current_program = None
 def _curr():
     global _current_program
-    if _current_program == None:
+    if _current_program == None and mscclpp._current_program == None:
         raise RuntimeError("No Program in context")
+    if _current_program == None:
+        return mscclpp._current_program
     return _current_program
 
-# For msccl++ program, we have one assumption that for channel can be identified by (send_buffer, recv_buffer, type, send_tb/recv_tb)
-# which means the send_tb and recv_tb should be the same for a pair of signal and wait, also same for put/get operation.
-# If one sender what to send data to peer want to use different tb in receiver side. We need to send to same tb in receiver side first,
-# then performance a across tb sync. This is a limitation of current implementation.
 
 class MSCCLProgram:
     def __init__(self, name, topo, collective, instances, protocol='Simple', \
             threadblock_policy=ThreadblockPolicy.auto, interleaved_replication=True,
-            instr_fusion=True, check_xml=True, dependence_nop=False, instance_policy=InstancePolicy.dup):
+            instr_fusion=True, check_xml=True, dependence_nop=False):
         self.name = name
         self.topo = topo
         self.collective = collective
@@ -40,7 +41,6 @@ class MSCCLProgram:
         self.instr_fusion = instr_fusion
         self.check_xml = check_xml
         self.dependence_nop = dependence_nop
-        self.instance_policy = instance_policy
         assert protocol == 'Simple' or protocol == 'LL' or protocol == 'LL128', \
             f'Given protocol: {protocol}. Must be either Simple, LL, LL128'
         self.run_opt = True # Runs optimization passes
@@ -131,21 +131,8 @@ class MSCCLProgram:
             check_threadblock_ordering(self.instr_dag)
         return Program(self.name, self.collective.name, self.collective.inplace, self.protocol, gpu_prgms)
 
-    # Lower program to MSCCLPP
-    def lower_mscclpp(self):
-        convert_to_exectuion_plan(self.instr_dag)
-        self.instr_dag.complete_channels()
-        if self.instr_fusion:
-            self.instr_dag.optimize_mscclpp(self.protocol)
-        self.instr_dag.lower_pt1(self.instances)
-        gpu_prgms = self.instr_dag.lower_pt2_mscclpp(self.instances, self.instance_policy)
-        return Program(self.name, self.collective.name, self.collective.inplace, self.protocol, gpu_prgms)
-
     def generate_xml(self):
         return ir_to_xml(self.lower(), dependence_nop=self.dependence_nop)
-
-    def generate_json(self):
-        return ir_to_json(self.lower_mscclpp(), dependence_nop=self.dependence_nop)
 
     def print_chunk_dag(self):
         visualize_chunk_dag(self.chunk_dag.chunk_paths)
@@ -156,9 +143,6 @@ class MSCCLProgram:
                 visualize_instr_dag(self.instr_dags[r].operations)
         else:
             visualize_instr_dag(self.instr_dags[rank].operations)
-
-class MSCCLPPProgram:
-    pass
 
 def Print():
     _curr().print_chunk_dag()
@@ -174,8 +158,6 @@ def create_scratch(rank, name):
 def XML():
    print(_curr().generate_xml())
 
-def Json():
-    print(_curr().generate_json())
 
 def Check():
     return _curr().check()
@@ -214,117 +196,6 @@ class Ref(ChunkRef):
 
         end = max(first._end(), second._end())
         return Ref(self.rank, self.buffer, first.index, end - first.index, self.prog)
-
-    def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
-        self.prog.check_buffer_exists(dst, buffer)
-        sender = self.rank
-        receiver = dst
-        assert sender != receiver, 'Cannot put to the same rank'
-
-        # If index is not specified assume it is going to the same place in the next gpu
-        if index == -1 and buffer == None:
-            index = self.index
-            buffer = self.buffer
-        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
-            index = self.prog.buffers[dst][buffer].instance_size()
-
-        # Some inplace collectives have custom logic for buffers and index (ReduceScatter, AllGather)
-        buffer, index = self.prog.collective.get_buffer_index(self.rank, buffer, index)
-
-        # Direct put
-        assert (self.prog.topo.link(self.rank, dst) or dst == self.rank), f'No link from {self.rank} to {dst}'
-        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-
-        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-        self.prog.instr_dag.add_put(sender, self, dst_chunkref, sendtb, chan_type)
-        if self.prog.protocol == 'LL':
-            self.prog.instr_dag.add_signal(sender, self, dst_chunkref, -1, ChannelType.none)
-            self.prog.instr_dag.add_wait(receiver, dst_chunkref, self, -1, ChannelType.none)
-
-    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
-        self.prog.check_buffer_exists(dst, buffer)
-        sender = self.rank
-        receiver = dst
-        assert sender != receiver, 'Cannot put to the same rank'
-
-        # If index is not specified assume it is going to the same place in the next gpu
-        if index == -1 and buffer == None:
-            index = self.index
-            buffer = self.buffer
-        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
-            index = self.prog.buffers[dst][buffer].instance_size()
-
-        # Some inplace collectives have custom logic for buffers and index (ReduceScatter, AllGather)
-        buffer, index = self.prog.collective.get_buffer_index(self.rank, buffer, index)
-
-        # Direct put
-        assert (self.prog.topo.link(self.rank, dst) or dst == self.rank), f'No link from {self.rank} to {dst}'
-        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-
-        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-        self.prog.instr_dag.add_put_packet(sender, self, dst_chunkref, sendtb, channel_type)
-        self.prog.instr_dag.add_signal(sender, self, dst_chunkref, -1, ChannelType.none)
-        self.prog.instr_dag.add_wait(receiver, dst_chunkref, self, -1, ChannelType.none)
-
-    def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
-        self.prog.check_buffer_exists(src, buffer)
-        sender = src
-        receiver = self.rank
-        assert sender != receiver, 'Cannot get from the same rank'
-
-        # If index is not specified assume it is going to the same place in the next gpu
-        if index == -1 and buffer == None:
-            index = self.index
-            buffer = self.buffer
-        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
-            index = self.prog.buffers[src][buffer].instance_size()
-
-        # Some inplace collectives have custom logic for buffers and index (ReduceScatter, AllGather)
-        buffer, index = self.prog.collective.get_buffer_index(src, buffer, index)
-
-        # Direct get
-        assert (self.prog.topo.link(self.rank, src) or src == self.rank), f'No link from {self.rank} to {src}'
-        src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
-
-        self.prog.apply_send(src, buffer, index, self.rank, self.buffer, self.index, self.size)
-        self.prog.instr_dag.add_get(receiver, src_chunkref, self, recvtb, chan_type)
-
-    # for signal and wait, currently we assuem the pair will use the same tb index. In future we need
-    # to infer the tb index from the instruction DAG Add a channel is define as (send_tb, src_buffer, recv_tb, dst_buffer, type).
-    # Then we can use DAG info to reduce the number of channels.
-    def signal(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
-        sender = self.rank
-        receiver = dst
-        assert sender != receiver, 'Cannot signal to the same rank'
-
-        if index == -1 and buffer == None:
-            index = self.index
-            buffer = self.buffer
-        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
-            index = self.prog.buffers[dst][buffer].instance_size()
-
-        # Direct signal
-        assert (self.prog.topo.link(self.rank, dst) or dst == self.rank), f'No link from {self.rank} to {dst}'
-        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-
-        self.prog.instr_dag.add_signal(sender, self, dst_chunkref, sendtb, chan_type)
-
-    def wait(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
-        sender = src
-        receiver = self.rank
-        assert sender != receiver, 'Cannot wait on the same rank'
-
-        if index == -1 and buffer == None:
-            index = self.index
-            buffer = self.buffer
-        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
-            index = self.prog.buffers[src][buffer].instance_size()
-
-        # Direct signal
-        assert (self.prog.topo.link(self.rank, src) or src == self.rank), f'No link from {self.rank} to {src}'
-        src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
-
-        self.prog.instr_dag.add_wait(receiver, self, src_chunkref, recvtb, chan_type)
 
     # Copies the chunk(s) referenced by this chunkref onto Rank dst at location (buffer, index)
     def copy(self, dst, buffer=None, index=-1, sendtb=-1, recvtb=-1, ch=-1):
@@ -365,35 +236,6 @@ class Ref(ChunkRef):
 
         return dst_chunkref
 
-    def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
-        self.prog.check_buffer_exists(dst, buffer)
-
-        # If index is not specified assume it is going to the same place in the next gpu
-        if index == -1 and buffer == None:
-            index = self.index
-            buffer = self.buffer
-        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
-            index = self.prog.buffers[dst][buffer].instance_size()
-
-        # Some inplace collectives have custom logic for buffers and index (ReduceScatter, AllGather)
-        buffer, index = self.prog.collective.get_buffer_index(self.rank, buffer, index)
-
-        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-
-        # Check if we are copying the chunk to the same index (easy mistake when we are using inplace)
-        if dst_chunkref == self:
-            return
-
-        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-
-        # self.prog.chunk_dag.add_send(chunks, overwritten_chunks, self, dst_chunkref, sendtb, recvtb, ch)
-        sender = self.rank
-        receiver = dst
-        assert sender == receiver, 'Packet copy only supports intra-rank communication'
-        self.prog.instr_dag.add_copy_packet(sender, self, dst_chunkref, sendtb)
-
-        return dst_chunkref
-
     # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
     def reduce(self, other_chunkref, sendtb=-1, recvtb=-1, ch=-1):
         # Receive reduce copy
@@ -415,21 +257,6 @@ class Ref(ChunkRef):
             sop.recv_match = rop
         else:
             self.prog.instr_dag.add_reduce(src, other_chunkref, self, sendtb, ch)
-
-        return self
-
-    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
-    def reduce_mscclpp(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm):
-        # Receive reduce copy
-        dst = self.rank
-        src = other_chunkref.rank
-        assert (self.prog.topo.link(src, dst) or src == dst), f'No link from {src} to {dst}'
-        self.prog.apply_reduce(src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size)
-
-        if src != dst:
-            self.prog.instr_dag.add_read_reduce(dst, other_chunkref, self, recvtb, channel_type)
-        else:
-            self.prog.instr_dag.add_reduce(src, other_chunkref, self, sendtb, ChannelType.none)
 
         return self
 

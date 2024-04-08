@@ -6,13 +6,20 @@ from msccl.language import *
 from msccl.topologies import *
 from msccl.language.collectives import AllReduce
 
+
 def allreduce_allpairs(gpus, instances):
     size = gpus
     chunksperloop = gpus * gpus
     topology = fully_connected(size)
     collective = AllReduce(size, chunksperloop, True)
-    with MSCCLProgram("allreduce_pairs", topology, collective, instances, protocol="LL",
-        interleaved_replication=False, threadblock_policy=ThreadblockPolicy.manual, dependence_nop=True):
+    with MSCCLPPProgram(
+        "allreduce_pairs",
+        topology,
+        collective,
+        instances,
+        protocol="LL",
+        dependence_nop=True,
+    ):
 
         # Each rank sends the nth chunk to the nth rank into scratch space
         for r1 in range(size):
@@ -21,34 +28,35 @@ def allreduce_allpairs(gpus, instances):
                     for tb in range(size):
                         index = r2 * size + tb
                         c = chunk(r1, Buffer.input, index)
-                        c.put_packet(r2, 'scratch', index=r1*size+tb, sendtb=tb)
+                        c.put_packet(r2, "scratch", index=r1 * size + tb, sendtb=tb)
 
         # Each rank performs a local reduction on the nth chunk
         # Utilize 8 threadblocks for this reduction for better parallelism
         for r in range(size):
             for index in range(size):
-                c = chunk(r, Buffer.input, r*size + index)
+                c = chunk(r, Buffer.input, r * size + index)
                 for peer in range(size):
                     if peer != r:
-                        c.reduce_packet(chunk(r, 'scratch', peer*size+index), sendtb=index)
+                        c.reduce_packet(chunk(r, "scratch", peer * size + index), sendtb=index)
                 for peer in range(size):
                     if peer != r:
-                        c.put_packet(peer, 'scratch', (size*size)+r*size+index, sendtb=index)
+                        c.put_packet(peer, "scratch", (size * size) + r * size + index, sendtb=index)
 
         # Each rank get final result from scratch space
         for r in range(size):
             for index in range(size):
                 for peer in range(size):
                     if peer != r:
-                        c = chunk(r, 'scratch', size*size+peer*size+index)
-                        c.copy_packet(r, Buffer.input, peer*size+index, sendtb=index)
+                        c = chunk(r, "scratch", size * size + peer * size + index)
+                        c.copy_packet(r, Buffer.input, peer * size + index, sendtb=index)
 
         Json()
         # Check()
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('num_gpus', type=int, help ='number of gpus')
-parser.add_argument('instances', type=int, help='number of instances')
+parser.add_argument("num_gpus", type=int, help="number of gpus")
+parser.add_argument("instances", type=int, help="number of instances")
 
 args = parser.parse_args()
 

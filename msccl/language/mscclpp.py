@@ -1,0 +1,316 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+from msccl.collectives import Collective
+from msccl.language.buffer import *
+from msccl.language.ir import *
+from msccl.language.rank_dag import *
+from msccl.language.tb_assignment import *
+from msccl.topologies.topology import Topology
+
+_current_program = None
+
+
+def _curr():
+    global _current_program
+    if _current_program == None:
+        raise RuntimeError("No Program in context")
+    return _current_program
+
+# For msccl++ program, we have one assumption that for channel can be identified by (send_buffer, recv_buffer, type, send_tb/recv_tb)
+# which means the send_tb and recv_tb should be the same for a pair of signal and wait, also same for put/get operation.
+# If one sender what to send data to peer want to use different tb in receiver side. We need to send to same tb in receiver side first,
+# then performance a across tb sync. This is a limitation of current implementation.
+class MSCCLPPProgram:
+    def __init__(
+        self,
+        name: str,
+        topo: Topology,
+        collective: Collective,
+        instances: int,
+        protocol: str = "Simple",
+        instr_fusion: bool = True,
+        dependence_nop: bool = False,
+        instance_policy: InstancePolicy = InstancePolicy.dup,
+    ):
+        self.name = name
+        self.topo = topo
+        self.collective = collective
+        self.num_ranks = topo.num_nodes()
+        self.instances = instances
+        self.protocol = protocol
+        self.instr_fusion = instr_fusion
+        self.dependence_nop = dependence_nop
+        self.instance_policy = instance_policy
+        assert protocol == "Simple" or protocol == "LL", f"Given protocol: {protocol}. Must be either Simple, LL"
+        self.run_opt = True  # Runs optimization passes
+        # Initialize the input buffers
+        self.buffers = collective.init_buffers()
+        self.instr_dag = InstructionDAG(self.num_ranks, self.buffers)
+        for r in range(self.num_ranks):
+            for index, chunk in enumerate(self.buffers[r][Buffer.input]):
+                buffer, index = self.collective.get_buffer_index(r, Buffer.input, index)
+                ref = self.get_ref(r, buffer, index, 1)
+                # self.chunk_dag.init_chunk(chunk, ref)
+                self.instr_dag.add_start(r, buffer, index, ref)
+
+    def __enter__(self):
+        global _current_program
+        if _current_program != None:
+            raise RuntimeError("There is already a MSCCLPP Program in context")
+        _current_program = self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        global _current_program
+        if _current_program != self:
+            raise RuntimeError("This program is not currently in context")
+        _current_program = None
+
+    # Tracks a send operation on the buffers
+    def apply_send(self, src, src_buffer, src_index, dst, dst_buffer, dst_index, size):
+        src_buffer, src_index = self.collective.get_buffer_index(src, src_buffer, src_index)
+        dst_buffer, dst_index = self.collective.get_buffer_index(dst, dst_buffer, dst_index)
+        sb = self.buffers[src][src_buffer]
+        db = self.buffers[dst][dst_buffer]
+        for i in range(size):
+            db[dst_index + i] = sb[src_index + i]
+
+    # Tracks a reduce operation on the buffers
+    def apply_reduce(self, src, src_buffer, src_index, dst, dst_buffer, dst_index, size):
+        src_buffer, src_index = self.collective.get_buffer_index(src, src_buffer, src_index)
+        dst_buffer, dst_index = self.collective.get_buffer_index(dst, dst_buffer, dst_index)
+        sb = self.buffers[src][src_buffer]
+        db = self.buffers[dst][dst_buffer]
+        for i in range(size):
+            reduce_chunk = db[dst_index + i]
+            sent_chunk = sb[src_index + i]
+            db[dst_index + i] = reduce_chunk.reduce(dst, sent_chunk)
+
+    def get_ref(self, rank, buffer, index, size):
+        buffer, index = self.collective.get_buffer_index(rank, buffer, index)
+        return Ref(rank, buffer, index, size, self)
+
+    def get_chunks(self, rank, buffer, index, size=1):
+        chunks = [None] * size
+        for i in range(0, size):
+            if self.buffers[rank][buffer] and index + i < len(self.buffers[rank][buffer]):
+                chunks[i] = self.buffers[rank][buffer][index + i]
+            else:
+                chunks[i] = None
+        return chunks
+
+    def check_buffer_exists(self, rank, name):
+        if name not in self.buffers[rank]:
+            self.buffers[rank][name] = BufferSlice(Buffer.scratch, name)
+
+    # Checks that all chunks that should be on each rank
+    # are present in the output buffer.
+    def check(self):
+        return self.collective.check(self)
+
+    # Lower program to MSCCLPP
+    def lower(self):
+        convert_to_exectuion_plan(self.instr_dag)
+        self.instr_dag.complete_channels()
+        if self.instr_fusion:
+            self.instr_dag.optimize_mscclpp(self.protocol)
+        self.instr_dag.lower_pt1(self.instances)
+        gpu_prgms = self.instr_dag.lower_pt2_mscclpp(self.instances, self.instance_policy)
+        return Program(
+            self.name,
+            self.collective.name,
+            self.collective.inplace,
+            self.protocol,
+            gpu_prgms,
+        )
+
+    def generate_json(self):
+        return ir_to_json(self.lower(), dependence_nop=self.dependence_nop)
+
+
+def Json():
+    print(_curr().generate_json())
+
+@dataclass
+class Ref(ChunkRef):
+    prog: MSCCLPPProgram
+
+    def __repr__(self):
+        return f"Ref(Buffer:{self.buffer}, Index:{self.index}, Size:{self.size}, Rank:{self.rank})"
+
+    def _end(self):
+        return self.index + self.size
+
+    def _get_chunk(self, index):
+        return self.prog.buffers[self.rank][self.buffer][index]
+
+    def split(self, num):
+        assert self.size % num == 0, f"Trying to split a chunk of {self.size} elements into {num} parts"
+        chunks = [None] * num
+        size = self.size // num
+        for i in range(num):
+            index = self.index + i * size
+            chunks[i] = self.prog.get_ref(self.rank, self.buffer, index, size)
+        return chunks
+
+    def group(self, other):
+        assert self.rank == other.rank, f"Trying to concatenate chunks on ranks {self.rank} and {other.rank}"
+        assert self.buffer == other.buffer, f"Trying to concatenate chunks in {self.buffer} and {other.buffer}"
+        if self.index < other.index:
+            first = self
+            second = other
+        else:
+            first = other
+            second = self
+
+        end = max(first._end(), second._end())
+        return Ref(self.rank, self.buffer, first.index, end - first.index, self.prog)
+
+    def _get_buffer_index(self, remote_rank, buffer, index):
+        if index == -1 and buffer == None:
+            return self.buffer, self.index
+        elif index == -1 and buffer is not Buffer.input and buffer is not Buffer.output:
+            return buffer, self.prog.buffers[remote_rank][buffer].instance_size()
+        return buffer, index
+
+    def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
+        self.prog.check_buffer_exists(dst, buffer)
+        sender = self.rank
+        receiver = dst
+        assert sender != receiver, "Cannot put to the same rank"
+        buffer, index = self._get_buffer_index(dst, buffer, index)
+
+        # Direct put
+        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+
+        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+        self.prog.instr_dag.add_put(sender, self, dst_chunkref, sendtb, chan_type)
+
+    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
+        self.prog.check_buffer_exists(dst, buffer)
+        sender = self.rank
+        receiver = dst
+        assert sender != receiver, "Cannot put to the same rank"
+        buffer, index = self._get_buffer_index(dst, buffer, index)
+
+        # Direct put
+        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+
+        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+        self.prog.instr_dag.add_put_packet(sender, self, dst_chunkref, sendtb, channel_type)
+        self.prog.instr_dag.add_signal(sender, self, dst_chunkref, -1, ChannelType.none)
+        self.prog.instr_dag.add_wait(receiver, dst_chunkref, self, -1, ChannelType.none)
+
+    def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
+        self.prog.check_buffer_exists(src, buffer)
+        sender = src
+        receiver = self.rank
+        assert sender != receiver, "Cannot get from the same rank"
+        buffer, index = self._get_buffer_index(src, buffer, index)
+
+        # Direct get
+        assert self.prog.topo.link(self.rank, src) or src == self.rank, f"No link from {self.rank} to {src}"
+        src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
+
+        self.prog.apply_send(src, buffer, index, self.rank, self.buffer, self.index, self.size)
+        self.prog.instr_dag.add_get(receiver, src_chunkref, self, recvtb, chan_type)
+
+    # for signal and wait, currently we assuem the pair will use the same tb index. In future we need
+    # to infer the tb index from the instruction DAG Add a channel is define as (send_tb, src_buffer, recv_tb, dst_buffer, type).
+    # Then we can use DAG info to reduce the number of channels.
+    def signal(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
+        sender = self.rank
+        receiver = dst
+        assert sender != receiver, "Cannot signal to the same rank"
+        buffer, index = self._get_buffer_index(dst, buffer, index)
+
+        # Direct signal
+        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+        self.prog.instr_dag.add_signal(sender, self, dst_chunkref, sendtb, chan_type)
+
+    def wait(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
+        sender = src
+        receiver = self.rank
+        assert sender != receiver, "Cannot wait on the same rank"
+        buffer, index = self._get_buffer_index(src, buffer, index)
+
+        # Direct wait
+        assert self.prog.topo.link(self.rank, src) or src == self.rank, f"No link from {self.rank} to {src}"
+        src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
+        self.prog.instr_dag.add_wait(receiver, self, src_chunkref, recvtb, chan_type)
+
+    # Copies the chunk(s) referenced by this chunkref onto Rank dst at location (buffer, index)
+    def copy(self, dst, buffer=None, index=-1, sendtb=-1, ch=-1):
+        self.prog.check_buffer_exists(dst, buffer)
+        buffer, index = self._get_buffer_index(dst, buffer, index)
+
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+        # Check if we are copying the chunk to the same index (easy mistake when we are using inplace)
+        if dst_chunkref == self:
+            return
+        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+
+        assert self.rank == dst, "Chunk copy only supports intra-rank communication"
+        self.prog.instr_dag.add_copy(self.rank, self, dst_chunkref, sendtb, ch)
+
+        return dst_chunkref
+
+    def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
+        self.prog.check_buffer_exists(dst, buffer)
+        buffer, index = self._get_buffer_index(dst, buffer, index)
+
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+        # Check if we are copying the chunk to the same index (easy mistake when we are using inplace)
+        if dst_chunkref == self:
+            return
+
+        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+        assert self.rank == dst, "Packet copy only supports intra-rank communication"
+        self.prog.instr_dag.add_copy_packet(self.rank, self, dst_chunkref, sendtb)
+
+        return dst_chunkref
+
+    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
+    def reduce(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm):
+        dst = self.rank
+        src = other_chunkref.rank
+        assert self.prog.topo.link(src, dst) or src == dst, f"No link from {src} to {dst}"
+        self.prog.apply_reduce(
+            src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
+        )
+
+        if src != dst:
+            self.prog.instr_dag.add_read_reduce(dst, other_chunkref, self, recvtb, channel_type)
+        else:
+            self.prog.instr_dag.add_reduce(src, other_chunkref, self, sendtb, ChannelType.none)
+
+        return self
+
+    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
+    def reduce_packet(self, other_chunkref, sendtb=-1):
+        dst = self.rank
+        src = other_chunkref.rank
+        assert dst == src, "Packet reduce only supports intra-rank communication"
+        self.prog.apply_reduce(
+            src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
+        )
+        self.prog.instr_dag.add_reduce_packet(src, other_chunkref, self, sendtb)
+        return self
+
+    def get_origin_index(self, index=0):
+        return self._get_chunk(index + self.index).origin_index
+
+    def get_origin_rank(self, index=0):
+        return self._get_chunk(index + self.index).origin_rank
+
+    def get_dst_index(self, index=0):
+        return self._get_chunk(index + self.index).dst_index
+
+    def get_dst_rank(self, index=0):
+        return self._get_chunk(index + self.index).dst_rank
+
+    def print_chunk_info(self, index=0):
+        print(self._get_chunk(index + self.index))
