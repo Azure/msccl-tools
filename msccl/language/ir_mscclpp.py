@@ -1,7 +1,8 @@
 from collections import defaultdict
+from dataclasses import dataclass
 import json
 
-from msccl.language.ir import Buffer, ChannelType, Instruction, Program
+from msccl.language.ir import Buffer, ChannelType, Instruction, Op, Program
 
 _local_src_insts_mscclpp = {
     Instruction.put,
@@ -92,7 +93,7 @@ def ir_to_json(program: Program):
 
     # Do some additional postprocessing of operations:
     # - Expand operations with dependencies with no-ops
-    if program.protocol != "LL":  # (TODO(binyli): fix it) ignore the dependence_nop for LL protocol
+    if program.protocol != "LL":  # TODO(binyli): fix this. Should based on OP type not algorithm
         for gpu in program.gpus:
             for tb in gpu.threadblocks:
                 new_ops = []
@@ -100,7 +101,6 @@ def ir_to_json(program: Program):
                     # Expand extra dependencies into nop operations
                     for i, dep in enumerate(op.depends):
                         new_ops.append(Op(Instruction.nop, -1, None, None, [dep]))
-                        # op_tb_id[new_ops[-1]] = op_tb_id[op]
                     new_ops.append(op)
                 tb.ops = new_ops
 

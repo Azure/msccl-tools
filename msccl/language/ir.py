@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-import json
 from lxml import etree as ET
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
+
+from msccl.language.buffer import Buffer
+from msccl.language.channel import ChannelType
 
 
 @dataclass
@@ -35,36 +37,6 @@ class Gpu:
 
     def scratch_size(self):
         return max((idx for addr, idx in self.scratch.items()), default=-1) + 1
-
-class ChannelType(Enum):
-    proxy = 'proxy'
-    sm = 'sm'
-    none = 'none'
-
-    def __str__(self):
-        return self.value
-
-class Buffer(Enum):
-    input = 'i'
-    output = 'o'
-    scratch = 's'
-
-    def __str__(self):
-        return self.value
-
-    def __lt__(self, other):
-        return self.value < other.value
-
-    def __gt__(self, other):
-        return self.value < other.value
-
-@dataclass(frozen=True)
-class Channel:
-    srcBuffer: Buffer
-    dstBuffer: Buffer
-    type: ChannelType
-    connected_to: int
-
 
 @dataclass
 class Threadblock:
@@ -138,8 +110,6 @@ class Instruction(Enum):
     def __str__(self):
         return self.value
 
-
-
 @dataclass
 class ChunkRef:
     rank: int
@@ -149,7 +119,6 @@ class ChunkRef:
 
     def __hash__(self):
         return hash((self.rank, self.buffer, self.index, self.size))
-
 
 @dataclass
 class Op:

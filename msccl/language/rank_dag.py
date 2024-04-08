@@ -1,11 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-from dataclasses import dataclass
-from enum import Enum
-import heapq
-import functools
-
+from msccl.language.channel import Channel
 from msccl.language.ir import *
 from msccl.language.passes import *
 
