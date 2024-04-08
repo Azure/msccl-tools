@@ -459,11 +459,12 @@ class InstructionDAG:
                     if op.inst == Instruction.reduce_packet or op.inst == Instruction.reduce_send_packet:
                         fused = False
                         for next_op in op.next:
-                            if next_op.inst == Instruction.put_packet and same_count(op, next_op) and buf_dst_src_match(op, next_op):
+                            if next_op.inst == Instruction.put_packet and same_count(op, next_op) and buf_dst_src_match(op, next_op) and next_op.channel_type == ChannelType.sm:
                                 if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                                     continue
                                 if op.inst == Instruction.reduce_packet:
                                     op.inst = Instruction.reduce_send_packet
+                                    op.channel_type = ChannelType.sm
                                 op.dsts.append((ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size), next_op.step))
                                 remove_op(next_op)
                                 tb.ops.remove(next_op)
