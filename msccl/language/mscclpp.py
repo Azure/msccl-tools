@@ -3,7 +3,7 @@
 
 from msccl.collectives import Collective
 from msccl.language.buffer import *
-from msccl.language.ir import *
+from msccl.language.ir_mscclpp import *
 from msccl.language.rank_dag import *
 from msccl.language.tb_assignment import *
 from msccl.topologies.topology import Topology
