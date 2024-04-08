@@ -260,16 +260,6 @@ class Ref(ChunkRef):
 
         return self
 
-    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
-    def reduce_packet(self, other_chunkref, sendtb=-1):
-        # Receive reduce copy
-        dst = self.rank
-        src = other_chunkref.rank
-        assert dst == src, 'Packet reduce only supports intra-rank communication'
-        self.prog.apply_reduce(src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size)
-        self.prog.instr_dag.add_reduce_packet(src, other_chunkref, self, sendtb)
-        return self
-
     def get_origin_index(self, index=0):
         return self._get_chunk(index + self.index).origin_index
 
