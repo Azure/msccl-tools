@@ -12,7 +12,7 @@ def allreduce_allpairs(gpus, instances, protocol):
     chunksperloop = gpus * gpus
     topology = fully_connected(size)
     collective = AllReduce(size, chunksperloop, True)
-    with MSCCLPPProgram("allreduce_pairs", topology, collective, instances, protocol=protocol, dependence_nop=True):
+    with MSCCLPPProgram("allreduce_pairs", topology, collective, instances, protocol=protocol):
         for rank in range(size):
             for tb in range(size):
                 index = rank * size

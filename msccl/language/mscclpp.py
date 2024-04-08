@@ -30,7 +30,6 @@ class MSCCLPPProgram:
         instances: int,
         protocol: str = "Simple",
         instr_fusion: bool = True,
-        dependence_nop: bool = False,
         instance_policy: InstancePolicy = InstancePolicy.dup,
     ):
         self.name = name
@@ -40,7 +39,6 @@ class MSCCLPPProgram:
         self.instances = instances
         self.protocol = protocol
         self.instr_fusion = instr_fusion
-        self.dependence_nop = dependence_nop
         self.instance_policy = instance_policy
         assert protocol == "Simple" or protocol == "LL", f"Given protocol: {protocol}. Must be either Simple, LL"
         self.run_opt = True  # Runs optimization passes
@@ -125,7 +123,7 @@ class MSCCLPPProgram:
         )
 
     def generate_json(self):
-        return ir_to_json(self.lower(), dependence_nop=self.dependence_nop)
+        return ir_to_json(self.lower())
 
 
 def Json():

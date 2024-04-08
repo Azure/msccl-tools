@@ -120,13 +120,14 @@ class Instruction(Enum):
     read_reduce_copy = "rrc"
     read_reduce_copy_send = "rrcs"
     reduce_send = 'rs'
-    reduce_send_packet = 'rspkt'
     copy = 'cpy'
-    copy_packet = 'cpkt'
     reduce = 're'
-    reduce_packet = 'rpkt'
     delete = 'd'
     start = 'st'
+    # used by mscclpp only
+    copy_packet = 'cpkt'
+    reduce_send_packet = 'rspkt'
+    reduce_packet = 'rpkt'
     put = 'put'
     put_packet = 'ppkt'
     get = 'get'
@@ -440,7 +441,7 @@ def ir_to_xml(program: Program, old_format=True, use_scratch=True, pretty_print=
         ET.indent(algo_elem, space='  ')
     return ET.tostring(algo_elem, encoding='unicode')
 
-def ir_to_json(program: Program, dependence_nop=False):
+def ir_to_json(program: Program):
     # Figure out sizes of buffers based on usage
     buffer_sizes = defaultdict(lambda: 0)
     for gpu in program.gpus:

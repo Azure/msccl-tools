@@ -18,7 +18,6 @@ def allreduce_allpairs(gpus, instances):
         collective,
         instances,
         protocol="LL",
-        dependence_nop=True,
     ):
 
         # Each rank sends the nth chunk to the nth rank into scratch space
