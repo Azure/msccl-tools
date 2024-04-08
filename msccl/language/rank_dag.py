@@ -117,8 +117,7 @@ class InstructionDAG:
 
     # InstructionDAG - adds a copy node
     def add_copy(self, rank, send_ref, recv_ref, tb, ch):
-        tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch, step=tb_step)
+        op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         dstbuffer = recv_ref.buffer
         dstindex = recv_ref.index
         srcbuffer = send_ref.buffer
@@ -130,9 +129,12 @@ class InstructionDAG:
         self._write(rank, dstbuffer, dstindex, size, op)
         return op
 
-    def add_copy_packet(self, rank, send_ref, recv_ref, tb):
+    def add_copy_mscclpp(self, rank, send_ref, recv_ref, tb, use_packet = False):
         tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.copy_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        if use_packet:
+            op = Op(Instruction.copy_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        else:
+            op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         dstbuffer = recv_ref.buffer
         dstindex = recv_ref.index
         srcbuffer = send_ref.buffer
@@ -161,10 +163,13 @@ class InstructionDAG:
         self._write(rank, dstbuffer, dstindex, size, op, read=True)
         return op
 
-    # InstructionDAG - adds a redduce packet node
-    def add_reduce_packet(self, rank, send_ref, recv_ref, tb):
+    # InstructionDAG - adds a redduce node
+    def add_reduce_mscclpp(self, rank, send_ref, recv_ref, tb, use_packet = False):
         tb_step = self._get_tb_step(rank, tb)
-        op = Op(Instruction.reduce_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        if use_packet:
+            op = Op(Instruction.reduce_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        else:
+            op = Op(Instruction.reduce, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         dstbuffer = recv_ref.buffer
         dstindex = recv_ref.index
         srcbuffer = send_ref.buffer

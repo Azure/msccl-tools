@@ -17,6 +17,7 @@ def _curr():
         raise RuntimeError("No Program in context")
     return _current_program
 
+
 # For msccl++ program, we have one assumption that for channel can be identified by (send_buffer, recv_buffer, type, send_tb/recv_tb)
 # which means the send_tb and recv_tb should be the same for a pair of signal and wait, also same for put/get operation.
 # If one sender what to send data to peer want to use different tb in receiver side. We need to send to same tb in receiver side first,
@@ -129,6 +130,7 @@ class MSCCLPPProgram:
 def Json():
     print(_curr().generate_json())
 
+
 @dataclass
 class Ref(ChunkRef):
     prog: MSCCLPPProgram
@@ -240,8 +242,7 @@ class Ref(ChunkRef):
         src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
         self.prog.instr_dag.add_wait(receiver, self, src_chunkref, recvtb, chan_type)
 
-    # Copies the chunk(s) referenced by this chunkref onto Rank dst at location (buffer, index)
-    def copy(self, dst, buffer=None, index=-1, sendtb=-1, ch=-1):
+    def _copy(self, dst, buffer=None, index=-1, sendtb=-1, use_packet=False):
         self.prog.check_buffer_exists(dst, buffer)
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
@@ -252,51 +253,41 @@ class Ref(ChunkRef):
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
 
         assert self.rank == dst, "Chunk copy only supports intra-rank communication"
-        self.prog.instr_dag.add_copy(self.rank, self, dst_chunkref, sendtb, ch)
+        self.prog.instr_dag.add_copy_mscclpp(self.rank, self, dst_chunkref, sendtb, use_packet)
 
         return dst_chunkref
+
+    # Copies the chunk(s) referenced by this chunkref onto Rank dst at location (buffer, index)
+    def copy(self, dst, buffer=None, index=-1, sendtb=-1):
+        return self._copy(dst, buffer, index, sendtb)
 
     def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
-        self.prog.check_buffer_exists(dst, buffer)
-        buffer, index = self._get_buffer_index(dst, buffer, index)
+        return self._copy(dst, buffer, index, sendtb, use_packet=True)
 
-        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-        # Check if we are copying the chunk to the same index (easy mistake when we are using inplace)
-        if dst_chunkref == self:
-            return
-
-        self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-        assert self.rank == dst, "Packet copy only supports intra-rank communication"
-        self.prog.instr_dag.add_copy_packet(self.rank, self, dst_chunkref, sendtb)
-
-        return dst_chunkref
-
-    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
-    def reduce(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm):
+    def _reduce(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm, use_packet=False):
         dst = self.rank
         src = other_chunkref.rank
         assert self.prog.topo.link(src, dst) or src == dst, f"No link from {src} to {dst}"
         self.prog.apply_reduce(
             src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
         )
+        if use_packet:
+            assert src == dst, "Packet reduce only supports intra-rank communication"
 
         if src != dst:
             self.prog.instr_dag.add_read_reduce(dst, other_chunkref, self, recvtb, channel_type)
         else:
-            self.prog.instr_dag.add_reduce(src, other_chunkref, self, sendtb, ChannelType.none)
+            self.prog.instr_dag.add_reduce_mscclpp(src, other_chunkref, self, sendtb, use_packet)
 
         return self
 
     # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
+    def reduce(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm):
+        return self._reduce(other_chunkref, sendtb, recvtb, channel_type)
+
+    # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
     def reduce_packet(self, other_chunkref, sendtb=-1):
-        dst = self.rank
-        src = other_chunkref.rank
-        assert dst == src, "Packet reduce only supports intra-rank communication"
-        self.prog.apply_reduce(
-            src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
-        )
-        self.prog.instr_dag.add_reduce_packet(src, other_chunkref, self, sendtb)
-        return self
+        return self._reduce(other_chunkref, sendtb, use_packet=True)
 
     def get_origin_index(self, index=0):
         return self._get_chunk(index + self.index).origin_index
