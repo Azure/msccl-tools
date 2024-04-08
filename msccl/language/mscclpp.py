@@ -112,7 +112,7 @@ class MSCCLPPProgram:
         convert_to_exectuion_plan(self.instr_dag)
         self.instr_dag.complete_channels()
         if self.instr_fusion:
-            self.instr_dag.optimize_mscclpp(self.protocol)
+            self.instr_dag.optimize_mscclpp()
         self.instr_dag.lower_pt1(self.instances)
         gpu_prgms = self.instr_dag.lower_pt2_mscclpp(self.instances, self.instance_policy)
         return Program(

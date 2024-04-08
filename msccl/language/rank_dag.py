@@ -528,7 +528,7 @@ class InstructionDAG:
                             continue
                     queue = queue[1:]
 
-    def optimize_mscclpp(self, protocol):
+    def optimize_mscclpp(self):
         self._optimize_redandant_signal_wait()
         self._optimize_rrc_r_signal_wait()
         self._optimize_rrcs_rs()
