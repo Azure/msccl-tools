@@ -11,9 +11,9 @@ def allreduce_allpairs(gpus, instances, protocol):
     chunksperloop = gpus * gpus
     topology = fully_connected(size)
     collective = AllReduce(size, chunksperloop, True)
-    with MSCCLProgram("allreduce_pairs", topology, collective, instances, protocol=protocol,
+    with MSCCLProgram("allreduce_pairs", topology, collective, instances, protocol=protocol, 
         interleaved_replication=False, threadblock_policy=ThreadblockPolicy.manual, dependence_nop=True):
-
+        
         # Each rank sends the nth chunk to the nth rank into scratch space
         for r1 in range(size):
             for r2 in range(size):
@@ -28,7 +28,7 @@ def allreduce_allpairs(gpus, instances, protocol):
             for index in range(0, size * (size-1)):
                     c = chunk(r, Buffer.input, r*size + (index % size))
                     c.reduce(chunk(r, 'scratch', index), sendtb=(index % size))
-
+        
         # Each rank sends the fully reduced nth chunk to all other gpus
         for r1 in range(size):
             for r2 in range(size):
@@ -36,7 +36,7 @@ def allreduce_allpairs(gpus, instances, protocol):
                     index = r1 * size
                     c = chunk(r1, Buffer.input, index, size)
                     c.copy(r2, Buffer.input, index, sendtb=r2, recvtb=r1)
-
+                
         XML()
         Check()
 
