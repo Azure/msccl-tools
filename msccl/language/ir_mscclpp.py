@@ -181,6 +181,7 @@ def dump_to_json(program: Program):
                 dst_channel_ids = []
                 src_channel_ids = []
                 srcs = []
+                dsts = []
                 src = None
                 dst = None
                 if op.tb == -1:
@@ -239,10 +240,10 @@ def dump_to_json(program: Program):
                     src = op.src
                 elif op.inst == Instruction.get:
                     src_channel_ids = get_channel_ids(
-                        [op.src], tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                        op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
                     )
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
-                    dst = op.dst
+                    dsts = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.dsts))
                 elif op.inst == Instruction.copy or op.inst == Instruction.copy_packet:
                     src = op.src
                     dst = op.dst
@@ -255,6 +256,7 @@ def dump_to_json(program: Program):
                         "o_cids": dst_channel_ids,
                         "src": src.rank if src else None,
                         "srcs": srcs if srcs else None,
+                        "dsts": dsts if dsts else None,
                         "srcbuff": src.buffer.value if src and src.buffer else None,
                         "srcoff": src.index if src else None,
                         "dst": dst.rank if dst else None,

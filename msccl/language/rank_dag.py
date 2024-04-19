@@ -230,6 +230,8 @@ class InstructionDAG:
         index = recv_ref.index
         size = recv_ref.size
         self._write(rank, buffer, index, size, op)
+        op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
+        op.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
         return op
 
     # InstructionDAG - adds a signal node.
@@ -328,7 +330,7 @@ class InstructionDAG:
                         chans.add(chan)
                 tb.channels = list(chans)
 
-    def _optimize_redandant_signal_wait(self):
+    def _optimize_redundant_signal_wait(self):
         # For packet ops, we can remove signal/wait
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
@@ -489,6 +491,29 @@ class InstructionDAG:
                             continue
                     queue = queue[1:]
 
+    # get(src, sbuf. si, dst, dbuf, di) get(src, sbuf, si, dst, dbuf, di) -> get(list[src,sbuf,si], list[dst,dbuf,di])
+    # put(src, sbuf, si, dst, dbuf, di) put(src, sbuf, si, dst, dbuf, di) -> put(list[src,sbuf,si], list[dst,dbuf,di])
+    def _optimize_get_put(self):
+        for rank, rank_tbs in enumerate(self.tbs):
+            for tbid, tb in rank_tbs.items():
+                queue = list(tb.ops)
+                while len(queue) > 0:
+                    op = queue[0]
+                    if op.inst == Instruction.get:
+                        fused = False
+                        if len(queue) > 1:
+                            seq_op = queue[1]
+                            if seq_op.inst == Instruction.get and same_src_dst_buffer_type(op, seq_op) and same_chan_type(op, seq_op) and same_count(op, seq_op):
+                                op.dsts.append((ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size), seq_op.step))
+                                op.srcs.append((ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size), seq_op.step))
+                                merge_op(op, seq_op)
+                                tb.ops.remove(seq_op)
+                                queue.remove(seq_op)
+                                fused = True
+                        if fused:
+                            continue
+                    queue = queue[1:]
+
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
     # then merge them into a single signal/wait op
     # wait(src,sbuf,si,_,_,_) wait(src,sbuf,si,_,_,_) -> wait(list[src,sbuf,si],_,_,_,_])
@@ -529,9 +554,10 @@ class InstructionDAG:
                     queue = queue[1:]
 
     def optimize_mscclpp(self):
-        self._optimize_redandant_signal_wait()
+        self._optimize_redundant_signal_wait()
         self._optimize_rrc_r_signal_wait()
         self._optimize_rrcs_rs()
+        self._optimize_get_put()
 
         self._parallel_signal_wait()
 

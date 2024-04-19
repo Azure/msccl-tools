@@ -35,7 +35,8 @@ def allreduce_allpairs(gpus, instances, protocol):
                     if rank != nghr:
                         c.wait(nghr, Buffer.input, index + tb, recvtb=tb)
                 # reduce the chunks
-                for nghr in range(size):
+                for i in range(size):
+                    nghr = (rank + i) % size
                     if rank != nghr:
                         c.reduce(chunk(nghr, Buffer.input, index + tb), recvtb=tb)
                 for nghr in range(size):
@@ -50,7 +51,8 @@ def allreduce_allpairs(gpus, instances, protocol):
                         index = nghr * size
                         c = chunk(rank, Buffer.input, index + tb)
                         c.wait(nghr, Buffer.input, index + tb, recvtb=tb)
-                for nghr in range(size):
+                for i in range(size):
+                    nghr = (rank + i) % size
                     index = nghr * size
                     if rank != nghr:
                         c = chunk(rank, Buffer.input, index + tb)
