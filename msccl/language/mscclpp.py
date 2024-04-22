@@ -256,7 +256,7 @@ class Ref(ChunkRef):
     def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
         return self._copy(dst, buffer, index, sendtb, use_packet=True)
 
-    def _reduce(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm, use_packet=False):
+    def _reduce(self, other_chunkref, recvtb=-1, channel_type=ChannelType.sm, use_packet=False):
         dst = self.rank
         src = other_chunkref.rank
         assert self.prog.topo.link(src, dst) or src == dst, f"No link from {src} to {dst}"
@@ -269,17 +269,17 @@ class Ref(ChunkRef):
         if src != dst:
             self.prog.instr_dag.add_read_reduce(dst, other_chunkref, self, recvtb, channel_type)
         else:
-            self.prog.instr_dag.add_reduce_mscclpp(src, other_chunkref, self, sendtb, use_packet)
+            self.prog.instr_dag.add_reduce_mscclpp(src, other_chunkref, self, recvtb, use_packet)
 
         return self
 
     # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
-    def reduce(self, other_chunkref, sendtb=-1, recvtb=-1, channel_type=ChannelType.sm):
-        return self._reduce(other_chunkref, sendtb, recvtb, channel_type)
+    def reduce(self, other_chunkref, recvtb=-1, channel_type=ChannelType.sm):
+        return self._reduce(other_chunkref, recvtb, channel_type)
 
     # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
-    def reduce_packet(self, other_chunkref, sendtb=-1):
-        return self._reduce(other_chunkref, sendtb, use_packet=True)
+    def reduce_packet(self, other_chunkref, recvtb=-1):
+        return self._reduce(other_chunkref, recvtb, use_packet=True)
 
     def get_origin_index(self, index=0):
         return self._get_chunk(index + self.index).origin_index

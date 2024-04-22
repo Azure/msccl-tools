@@ -158,6 +158,7 @@ def dump_to_json(program: Program):
             }
             gpu_instance["channels"].append(obj)
         gpu_instance["channels"] = list(filter(lambda x: x["type"] != "none", gpu_instance["channels"]))
+        gpu_instance["channels"] = sorted(gpu_instance["channels"], key=lambda x: (x["srcbuff"], x["dstbuff"]))
         for tb in gpu.threadblocks:
             if tb.id < 0:
                 continue
@@ -175,6 +176,7 @@ def dump_to_json(program: Program):
                 tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
                 tb_channels.append(obj)
             tb_channels = filter(lambda x: x["type"] != "none", tb_channels)
+            tb_channels = sorted(tb_channels, key=lambda x: (x["srcbuff"], x["dstbuff"]))
             for op in tb.ops:
                 o_buff = None
                 i_buff = None
@@ -234,10 +236,10 @@ def dump_to_json(program: Program):
                     }
                 elif op.inst == Instruction.put or op.inst == Instruction.put_packet:
                     dst_channel_ids = get_channel_ids(
-                        [op.dst], tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                        op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
                     )
                     o_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
-                    src = op.src
+                    srcs = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs))
                 elif op.inst == Instruction.get:
                     src_channel_ids = get_channel_ids(
                         op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type

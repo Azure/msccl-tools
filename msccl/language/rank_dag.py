@@ -221,6 +221,8 @@ class InstructionDAG:
         index = send_ref.index
         size = send_ref.size
         self._read(rank, buffer, index, size, op)
+        op.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
+        op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
         return op
 
     def add_get(self, rank, send_ref, recv_ref, tb, ch_type):
@@ -326,7 +328,7 @@ class InstructionDAG:
                         chan = Channel(src_buffer, dst_buffer, op.channel_type, op.dst.rank)
                         chans.add(chan)
                     elif op.inst in recv_op:
-                        chan = Channel(dst_buffer, src_buffer, op.channel_type, op.src.rank)
+                        chan = Channel(src_buffer, dst_buffer, op.channel_type, op.src.rank)
                         chans.add(chan)
                 tb.channels = list(chans)
 
@@ -464,6 +466,7 @@ class InstructionDAG:
                                     continue
                                 if op.inst == Instruction.reduce:
                                     op.inst = Instruction.reduce_send
+                                    op.channel_type = ChannelType.sm
                                 op.dsts.append((ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size), next_op.step))
                                 remove_op(next_op)
                                 tb.ops.remove(next_op)
@@ -512,6 +515,30 @@ class InstructionDAG:
                                 fused = True
                         if fused:
                             continue
+                    elif op.inst == Instruction.put:
+                        fused = False
+                        if len(queue) > 1:
+                            seq_op = queue[1]
+                            if seq_op.inst == Instruction.put and same_src_dst_buffer_type(op, seq_op) and same_chan_type(op, seq_op) and same_count(op, seq_op):
+                                op.dsts.append((ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size), seq_op.step))
+                                op.srcs.append((ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size), seq_op.step))
+                                merge_op(op, seq_op)
+                                tb.ops.remove(seq_op)
+                                queue.remove(seq_op)
+                                fused = True
+                        if fused:
+                            continue
+                    elif op.inst == Instruction.put_packet:
+                        fused = False
+                        if len(queue) > 1:
+                            seq_op = queue[1]
+                            if seq_op.inst == Instruction.put_packet and same_src_dst_buffer_type(op, seq_op) and same_chan_type(op, seq_op) and same_count(op, seq_op):
+                                op.dsts.append((ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size), seq_op.step))
+                                op.srcs.append((ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size), seq_op.step))
+                                merge_op(op, seq_op)
+                                tb.ops.remove(seq_op)
+                                queue.remove(seq_op)
+                                fused = True
                     queue = queue[1:]
 
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
