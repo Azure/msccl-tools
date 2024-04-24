@@ -3,6 +3,7 @@
 
 from msccl.language.buffer import *
 from msccl.language.instruction_dag import *
+from msccl.language.mscclpp.instruction_dag import MscclppInstructionDAG
 from msccl.language.passes import *
 from msccl.language.tb_assignment import *
 from msccl.language.types import ThreadblockPolicy
@@ -49,7 +50,7 @@ class MSCCLProgram:
         # Initialize the input buffers
         # self.chunk_dag = ChunkDAG()
         self.buffers = collective.init_buffers()
-        self.instr_dag = MscclInstructionDAG(self.num_ranks, self.buffers)
+        self.instr_dag = MscclppInstructionDAG(self.num_ranks, self.buffers)
         for r in range(self.num_ranks):
             for index, chunk in enumerate(self.buffers[r][Buffer.input]):
                 buffer, index = self.collective.get_buffer_index(r, Buffer.input, index)
