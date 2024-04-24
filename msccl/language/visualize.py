@@ -3,7 +3,7 @@
 
 import igraph as ig
 from msccl.language.ir import *
-from msccl.language.rank_dag import *
+from msccl.language.instruction_dag import *
 
 def visualize_chunk_dag(chunk_paths): # pragma: no cover
     frontier = []
@@ -29,7 +29,7 @@ def visualize_chunk_dag(chunk_paths): # pragma: no cover
         return nnodes
 
     for chunk, op in chunk_paths.items():
-        if len(op.prev) == 0: 
+        if len(op.prev) == 0:
             frontier.append(op)
 
     while len(frontier) > 0:
@@ -73,7 +73,7 @@ def visualize_rank_dag(operations): # pragma: no cover
             else:
                 vertex_label.append(f'{op.inst}')
 
-            # Add colors 
+            # Add colors
             if op.inst == Instruction.start:
                 vertex_colors.append('gray')
             else:
@@ -81,7 +81,7 @@ def visualize_rank_dag(operations): # pragma: no cover
         return nnodes
 
     for slot, op in operations.items():
-        if len(op.prev) == 0: 
+        if len(op.prev) == 0:
             frontier.append(op)
 
     while len(frontier) > 0:

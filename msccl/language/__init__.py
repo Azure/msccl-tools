@@ -6,7 +6,7 @@ from msccl.language.passes import *
 from msccl.language.tb_assignment import *
 from msccl.language.chunk import *
 from msccl.language.buffer import *
-from msccl.language.rank_dag import *
+from msccl.language.instruction_dag import *
 import msccl.language.msccl as msccl_lang
 import msccl.language.mscclpp as mscclpp
 from msccl.language.mscclpp import *

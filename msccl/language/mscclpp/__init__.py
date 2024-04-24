@@ -3,8 +3,8 @@
 
 from msccl.collectives import Collective
 from msccl.language.buffer import *
-from msccl.language.ir_mscclpp import *
-from msccl.language.rank_dag import *
+from msccl.language.mscclpp.ir import *
+from msccl.language.mscclpp.instruction_dag import MscclppInstructionDAG
 from msccl.language.tb_assignment import *
 from msccl.topologies.topology import Topology
 
@@ -31,7 +31,7 @@ class MSCCLPPProgram:
         instances: int,
         protocol: str = "Simple",
         instr_fusion: bool = True,
-        instance_policy: InstancePolicy = InstancePolicy.dup,
+        instance_policy: InstancePolicy = InstancePolicy.duplicated,
     ):
         self.name = name
         self.topo = topo
@@ -45,7 +45,7 @@ class MSCCLPPProgram:
         self.run_opt = True  # Runs optimization passes
         # Initialize the input buffers
         self.buffers = collective.init_buffers()
-        self.instr_dag = InstructionDAG(self.num_ranks, self.buffers)
+        self.instr_dag = MscclppInstructionDAG(self.num_ranks, self.buffers)
         for r in range(self.num_ranks):
             for index, chunk in enumerate(self.buffers[r][Buffer.input]):
                 buffer, index = self.collective.get_buffer_index(r, Buffer.input, index)
@@ -112,9 +112,9 @@ class MSCCLPPProgram:
         convert_to_exectuion_plan(self.instr_dag)
         self.instr_dag.complete_channels()
         if self.instr_fusion:
-            self.instr_dag.optimize_mscclpp()
+            self.instr_dag.optimize()
         self.instr_dag.lower_pt1(self.instances)
-        gpu_prgms = self.instr_dag.lower_pt2_mscclpp(self.instances, self.instance_policy)
+        gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.instance_policy)
         return Program(
             self.name,
             self.collective.name,
@@ -246,7 +246,7 @@ class Ref(ChunkRef):
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
 
         assert self.rank == dst, "Chunk copy only supports intra-rank communication"
-        self.prog.instr_dag.add_copy_mscclpp(self.rank, self, dst_chunkref, sendtb, use_packet)
+        self.prog.instr_dag.add_copy(self.rank, self, dst_chunkref, sendtb, use_packet)
 
         return dst_chunkref
 
@@ -270,7 +270,7 @@ class Ref(ChunkRef):
         if src != dst:
             self.prog.instr_dag.add_read_reduce(dst, other_chunkref, self, recvtb, channel_type)
         else:
-            self.prog.instr_dag.add_reduce_mscclpp(src, other_chunkref, self, recvtb, use_packet)
+            self.prog.instr_dag.add_reduce(src, other_chunkref, self, recvtb, use_packet)
 
         return self
 

@@ -1,8 +1,11 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 from collections import defaultdict
 from dataclasses import dataclass
 import json
 
-from msccl.language.ir import Buffer, ChannelType, Instruction, Op, Program
+from msccl.language.types import Buffer, ChannelType, Op, Program, MscclppInstruction as Instruction
 
 _local_src_insts_mscclpp = {
     Instruction.put,
