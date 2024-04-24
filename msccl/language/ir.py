@@ -5,7 +5,7 @@ from lxml import etree as ET
 from collections import defaultdict
 
 from msccl.language.buffer import Buffer
-from msccl.language.types import MscclInstruction as Instruction, Op, Program
+from msccl.language.types import Instruction, Op, Program
 
 
 # Instructions where src is on local GPU

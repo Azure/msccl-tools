@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 
 from msccl.language.buffer import Buffer
-from msccl.language.types import ChunkRef, Gpu, InstancePolicy, Instruction, MscclInstruction, Op, Threadblock
+from msccl.language.types import ChunkRef, Gpu, InstancePolicy, Instruction, Op, Threadblock
 
 
 def remove_op(op: Op):
@@ -186,7 +186,7 @@ class InstructionDAG(ABC):
                 op.next = list(op.next)
                 for o in op.next:
                     ops.append(o)
-            elif op.inst != MscclInstruction.copy:
+            elif op.inst != Instruction.copy:
                 ops.append(op)
 
             while len(ops) > 0:
@@ -216,14 +216,14 @@ class InstructionDAG(ABC):
         pass
 
 
-class MscclInstructionDAG(InstructionDAG):
+class InstructionDAG(InstructionDAG):
 
     def __init__(self, num_ranks, buffers):
         super().__init__(num_ranks, buffers)
 
     # InstructionDAG - adds a copy node
     def add_copy(self, rank, send_ref, recv_ref, tb, ch):
-        op = Op(MscclInstruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
+        op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         dstbuffer = recv_ref.buffer
         dstindex = recv_ref.index
         srcbuffer = send_ref.buffer
@@ -237,7 +237,7 @@ class MscclInstructionDAG(InstructionDAG):
 
     # InstructionDAG - adds a redduce node
     def add_reduce(self, rank, send_ref, recv_ref, tb, ch):
-        op = Op(MscclInstruction.reduce, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
+        op = Op(Instruction.reduce, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         dstbuffer = recv_ref.buffer
         dstindex = recv_ref.index
         srcbuffer = send_ref.buffer
@@ -251,7 +251,7 @@ class MscclInstructionDAG(InstructionDAG):
 
     # InstructionDAG - adds a send node
     def add_send(self, rank, send_ref, recv_ref, tb, ch):
-        op = Op(MscclInstruction.send, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
+        op = Op(Instruction.send, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         buffer = send_ref.buffer
         index = send_ref.index
         size = send_ref.size
@@ -260,7 +260,7 @@ class MscclInstructionDAG(InstructionDAG):
 
     # InstructionDAG - adds a recv node
     def add_recv(self, rank, send_ref, recv_ref, tb, ch, send_op):
-        op = Op(MscclInstruction.recv, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
+        op = Op(Instruction.recv, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         buffer = recv_ref.buffer
         index = recv_ref.index
         size = recv_ref.size
@@ -270,7 +270,7 @@ class MscclInstructionDAG(InstructionDAG):
 
     # InstructionDAG - adds a rrc node
     def add_recv_reduce_copy(self, rank, send_ref, recv_ref, tb, ch, send_op):
-        op = Op(MscclInstruction.recv_reduce_copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
+        op = Op(Instruction.recv_reduce_copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, channel=ch)
         buffer = recv_ref.buffer
         index = recv_ref.index
         size = recv_ref.size
@@ -317,14 +317,14 @@ class MscclInstructionDAG(InstructionDAG):
                 op = frontier[0]
                 for next_op in op.next:
                     if (
-                        op.inst == MscclInstruction.recv
-                        and next_op.inst == MscclInstruction.send
+                        op.inst == Instruction.recv
+                        and next_op.inst == Instruction.send
                         and same_tb(op, next_op)
                         and same_count(op, next_op)
                         and same_buf_dst(op, next_op)
                     ):
                         # recv -> rcs, remove send
-                        op.inst = MscclInstruction.recv_copy_send
+                        op.inst = Instruction.recv_copy_send
                         op.dst = next_op.dst
                         next_op.recv_match.send_match = op
                         op.recv_match = next_op.recv_match
@@ -347,27 +347,27 @@ class MscclInstructionDAG(InstructionDAG):
                     if len(next_op.next) == 1:
                         nnext_op = next_op.next[0]
                         if (
-                            op.inst == MscclInstruction.recv_reduce_copy
-                            and next_op.inst == MscclInstruction.send
-                            and nnext_op.inst is MscclInstruction.recv
+                            op.inst == Instruction.recv_reduce_copy
+                            and next_op.inst == Instruction.send
+                            and nnext_op.inst is Instruction.recv
                             and same_tb(op, next_op)
                             and same_count(op, next_op)
                             and same_buf_dst(op, next_op)
                         ):
-                            op.inst = MscclInstruction.recv_reduce_send
+                            op.inst = Instruction.recv_reduce_send
                             op.dst = next_op.dst
                             next_op.recv_match.send_match = op
                             op.recv_match = next_op.recv_match
                             remove_op(next_op)
 
                     if (
-                        op.inst == MscclInstruction.recv_reduce_copy
-                        and next_op.inst == MscclInstruction.send
+                        op.inst == Instruction.recv_reduce_copy
+                        and next_op.inst == Instruction.send
                         and same_tb(op, next_op)
                         and same_count(op, next_op)
                         and same_buf_dst(op, next_op)
                     ):
-                        op.inst = MscclInstruction.recv_reduce_copy_send
+                        op.inst = Instruction.recv_reduce_copy_send
                         op.dst = next_op.dst
                         next_op.recv_match.send_match = op
                         op.recv_match = next_op.recv_match

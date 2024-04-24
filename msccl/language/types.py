@@ -90,12 +90,6 @@ class InstancePolicy(Enum):
 class Instruction(Enum):
     delete = "d"
     start = "st"
-
-    def __str__(self):
-        return self.value
-
-
-class MscclInstruction(Enum):
     nop = "nop"
     send = "s"
     recv = "r"
@@ -144,7 +138,7 @@ class ChunkRef:
 
 @dataclass
 class Op:
-    inst: Union[Instruction, MscclInstruction, MscclppInstruction]
+    inst: Union[Instruction, MscclppInstruction]
     rank: int
     src: ChunkRef
     dst: ChunkRef
@@ -175,35 +169,35 @@ class Op:
 
     def is_send(self):
         return (
-            self.inst == MscclInstruction.send
-            or self.inst == MscclInstruction.recv_reduce_copy_send
-            or self.inst == MscclInstruction.recv_copy_send
-            or self.inst == MscclInstruction.recv_reduce_send
+            self.inst == Instruction.send
+            or self.inst == Instruction.recv_reduce_copy_send
+            or self.inst == Instruction.recv_copy_send
+            or self.inst == Instruction.recv_reduce_send
         )
 
     def is_recv(self):
         return (
-            self.inst == MscclInstruction.recv
-            or self.inst == MscclInstruction.recv_reduce_copy
-            or self.inst == MscclInstruction.recv_reduce_copy_send
-            or self.inst == MscclInstruction.recv_copy_send
-            or self.inst == MscclInstruction.recv_reduce_send
+            self.inst == Instruction.recv
+            or self.inst == Instruction.recv_reduce_copy
+            or self.inst == Instruction.recv_reduce_copy_send
+            or self.inst == Instruction.recv_copy_send
+            or self.inst == Instruction.recv_reduce_send
         )
 
     def is_fused(self):
         return (
-            self.inst == MscclInstruction.recv_reduce_copy_send
-            or self.inst == MscclInstruction.recv_copy_send
-            or self.inst == MscclInstruction.recv_reduce_send
+            self.inst == Instruction.recv_reduce_copy_send
+            or self.inst == Instruction.recv_copy_send
+            or self.inst == Instruction.recv_reduce_send
         )
 
     def is_local(self):
-        return self.inst == MscclInstruction.copy or self.inst == MscclInstruction.reduce
+        return self.inst == Instruction.copy or self.inst == Instruction.reduce
 
     def peer(self):
-        if self.inst == MscclInstruction.send:
+        if self.inst == Instruction.send:
             return self.dst.rank
-        elif self.inst == MscclInstruction.recv:
+        elif self.inst == Instruction.recv:
             return self.src.rank
         else:
             return None

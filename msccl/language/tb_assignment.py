@@ -119,7 +119,7 @@ def topo_sort_instrs(rank_dag):
         if op.inst == Instruction.start:
             visited.add(op)
             for o in op.next:
-                if o.inst == MscclInstruction.send or o.inst == MscclInstruction.copy:
+                if o.inst == Instruction.send or o.inst == Instruction.copy:
                     heapq.heappush(ops, (priority(o), o))
 
     while len(ops) > 0:
@@ -206,7 +206,7 @@ def channel_assignment(instrs, rank_dag):
 
     # Assign channels to flows
     for op in instrs:
-        if op.inst == MscclInstruction.send and op.recv_match.is_fused():
+        if op.inst == Instruction.send and op.recv_match.is_fused():
             dfs(op, all_channels(), [])
 
     # Iterate through and make certain the sends and receives between a pair of GPUs is consistent
