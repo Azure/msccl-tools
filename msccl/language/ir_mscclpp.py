@@ -146,6 +146,7 @@ def dump_to_json(program: Program):
             "inputChunks": gpu.input_chunks,
             "outputChunks": gpu.output_chunks,
             "scratchChunks": gpu.scratch_chunks,
+            "chunkGroups": program.num_chunk_groups,
             "threadblocks": [],
             "channels": [],
         }

@@ -17,6 +17,7 @@ class Program:
     inplace: bool
     protocol: str
     gpus: list = field(default_factory=list)
+    num_chunk_groups: int = 1
 
 
 @dataclass

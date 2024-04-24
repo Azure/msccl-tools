@@ -121,6 +121,7 @@ class MSCCLPPProgram:
             self.collective.inplace,
             self.protocol,
             gpu_prgms,
+            self.collective.num_chunk_groups * self.instances
         )
 
     def generate_json(self):
