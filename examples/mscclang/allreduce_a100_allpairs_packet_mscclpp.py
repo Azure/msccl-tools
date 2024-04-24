@@ -37,7 +37,7 @@ def allreduce_allpairs(gpus, instances):
                 c = chunk(r, Buffer.input, r * size + index)
                 for peer in range(size):
                     if peer != r:
-                        c.reduce_packet(chunk(r, "scratch", peer * size + index), sendtb=index)
+                        c.reduce_packet(chunk(r, "scratch", peer * size + index), recvtb=index)
                 for peer in range(size):
                     if peer != r:
                         c.put_packet(peer, "scratch", (size * size) + r * size + index, sendtb=index)
