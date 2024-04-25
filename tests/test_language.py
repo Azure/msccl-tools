@@ -320,7 +320,7 @@ def test_routines_allreduce_packet_inplace_mscclpp():
     size = 8
     topology = fully_connected(size)
     collective = AllReduce(size, size * size, True)
-    with MSCCLPPProgram("allreduce_packet", topology, collective, 1, protocol="LL"):
+    with MSCCLPPProgram("allreduce_packet", topology, collective, 2, protocol="LL"):
         # Each rank sends the nth chunk to the nth rank into scratch space
         for r1 in range(size):
             for tb in range(size):
