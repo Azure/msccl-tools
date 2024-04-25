@@ -43,6 +43,7 @@ def allreduce_ring(size, instances):
                 c.wait(prev_rank, Buffer.input, (index + size - 1) % size, 0)
 
         Json()
+        Check()
 
 
 parser = argparse.ArgumentParser()
