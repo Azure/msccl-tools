@@ -73,7 +73,7 @@ class ThreadblockPolicy(Enum):
         return self.value
 
 
-class InstancePolicy(Enum):
+class ReplicationPolicy(Enum):
     # this means pack multi instrances to deal with the same chunk and share the channels
     packed = "packed"
     # this means each instance deal with the different chunk

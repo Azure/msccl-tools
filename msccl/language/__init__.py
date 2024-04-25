@@ -11,7 +11,7 @@ import msccl.language.mscclpp as mscclpp
 from msccl.language.mscclpp import *
 from typing import Union
 
-from msccl.language.types import ThreadblockPolicy
+from msccl.language.types import ReplicationPolicy, ThreadblockPolicy
 
 # from msccl.language.visualize import *
 
@@ -49,7 +49,9 @@ class MSCCLProgram:
         self.instances = instances
         self.protocol = protocol
         self.threadblock_policy = threadblock_policy
-        self.interleaved_replication = interleaved_replication
+        self.replication_policy = (
+            ReplicationPolicy.interleaved if interleaved_replication else ReplicationPolicy.duplicated
+        )
         self.instr_fusion = instr_fusion
         self.check_xml = check_xml
         self.dependence_nop = dependence_nop
@@ -136,7 +138,7 @@ class MSCCLProgram:
         else:
             auto_assign_tbs(self.instr_dag)
         self.instr_dag.lower_pt1(self.instances)
-        gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.interleaved_replication)
+        gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.replication_policy)
         if self.check_xml:
             # Check generated MSCCL-IR for correctness - no circular dependencies, sends and receives are ordered
             # For very large programs, turn off check_xml when shipping

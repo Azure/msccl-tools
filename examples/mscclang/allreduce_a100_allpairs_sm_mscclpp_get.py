@@ -59,6 +59,7 @@ def allreduce_allpairs(gpus, instances, protocol):
                         c.get(nghr, Buffer.input, index + tb, recvtb=tb)
 
         Json()
+        Check()
 
 
 parser = argparse.ArgumentParser()

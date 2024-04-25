@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 
 from msccl.language.buffer import Buffer
-from msccl.language.types import ChunkRef, Gpu, InstancePolicy, Instruction, Op, Threadblock
+from msccl.language.types import ChunkRef, Gpu, Instruction, Op, ReplicationPolicy, Threadblock
 
 
 def remove_op(op: Op):
@@ -203,8 +203,8 @@ class InstructionDAG(ABC):
         self._infer_dependencies()
         self._lower_buffers(instances)
 
-    def lower_pt2(self, instances: int, instance_pollicy: InstancePolicy):
-        self.replicate(instances, instance_pollicy)
+    def lower_pt2(self, instances: int, replication_policy: ReplicationPolicy):
+        self.replicate(instances, replication_policy)
         return self._lower_tbs()
 
     @abstractmethod
@@ -212,7 +212,7 @@ class InstructionDAG(ABC):
         pass
 
     @abstractmethod
-    def replicate(self, instances: int, instance_policy: InstancePolicy):
+    def replicate(self, instances: int, replication_policy: ReplicationPolicy):
         pass
 
 
@@ -382,7 +382,7 @@ class MscclInstructionDAG(InstructionDAG):
     # only interleaved replication will be correct
     # Interleaved policy only supports single count sends/receives from the input/output buffer
     # (multicount ops are fine between scratch)
-    def replicate(self, instances, interleaved):
+    def replicate(self, instances, replication_policy: ReplicationPolicy):
         if instances == 1:
             self.instanced_tbs = self.tbs
             return
@@ -401,7 +401,7 @@ class MscclInstructionDAG(InstructionDAG):
                 return buf_instance_len * i + index
             # If this is operating on the input/output buffer then replication strategy can be either interleaved or batched
             # This is to fit with the semantics of certain collectives
-            elif interleaved:
+            elif replication_policy == ReplicationPolicy.interleaved:
                 return index * instances + i * size
             else:
                 return len(self.buffers[rank][buffer]) * i + index

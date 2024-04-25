@@ -50,7 +50,7 @@ def allreduce_allpairs(gpus, instances):
                     c.copy_packet(r, Buffer.input, peer * size, sendtb=peer)
 
         Json()
-        # Check()
+        Check()
 
 
 parser = argparse.ArgumentParser()

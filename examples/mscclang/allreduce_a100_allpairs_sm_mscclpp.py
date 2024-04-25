@@ -45,6 +45,7 @@ def allreduce_allpairs(gpus, instances, protocol):
                         c_peer.wait(nghr, Buffer.input, peer_index + tb, recvtb=tb)
 
         Json()
+        Check()
 
 
 parser = argparse.ArgumentParser()

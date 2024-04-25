@@ -61,6 +61,13 @@ def ir_to_json(program: Program):
         gpu.output_chunks = max(buffer_sizes[(gpu.rank, Buffer.output)], gpu.output_chunks)
         gpu.scratch_chunks = max(buffer_sizes[(gpu.rank, Buffer.scratch)], gpu.scratch_chunks)
 
+    # Since LL protocol will double the scratch size. We need to make sure all GPUs have the same scratch size.
+    # Otherwise the offset calculation will be wrong.
+    if program.protocol == "LL":
+        max_scratch = max(gpu.scratch_chunks for gpu in program.gpus)
+        for gpu in program.gpus:
+            gpu.scratch_chunks = max_scratch
+
     # get channel info for each GPU and threadblock
     for gpu in program.gpus:
         gpu.threadblocks = sorted(gpu.threadblocks, key=lambda tb: tb.id)

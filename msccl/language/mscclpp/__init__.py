@@ -31,7 +31,7 @@ class MSCCLPPProgram:
         instances: int,
         protocol: str = "Simple",
         instr_fusion: bool = True,
-        instance_policy: InstancePolicy = InstancePolicy.duplicated,
+        replication_policy: ReplicationPolicy = ReplicationPolicy.duplicated,
     ):
         self.name = name
         self.topo = topo
@@ -40,7 +40,7 @@ class MSCCLPPProgram:
         self.instances = instances
         self.protocol = protocol
         self.instr_fusion = instr_fusion
-        self.instance_policy = instance_policy
+        self.replication_policy = replication_policy
         assert protocol == "Simple" or protocol == "LL", f"Given protocol: {protocol}. Must be either Simple, LL"
         self.run_opt = True  # Runs optimization passes
         # Initialize the input buffers
@@ -114,7 +114,7 @@ class MSCCLPPProgram:
         if self.instr_fusion:
             self.instr_dag.optimize()
         self.instr_dag.lower_pt1(self.instances)
-        gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.instance_policy)
+        gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.replication_policy)
         return Program(
             self.name,
             self.collective.name,
@@ -189,9 +189,10 @@ class Ref(ChunkRef):
             self.prog.instr_dag.add_wait(dst, dst_chunkref, self, -1, ChannelType.none)
         else:
             self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type)
+        return dst_chunkref
 
     def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
-        self._put(dst, buffer, index, sendtb, chan_type)
+        return self._put(dst, buffer, index, sendtb, chan_type)
 
     def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
         return self._put(dst, buffer, index, sendtb, channel_type, use_packet=True)

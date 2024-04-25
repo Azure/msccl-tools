@@ -15,7 +15,7 @@ from msccl.language.instruction_dag import (
     same_src_dst_buffer_type,
 )
 from msccl.language.instruction_dag import InstructionDAG
-from msccl.language.types import ChunkRef, InstancePolicy, MscclppInstruction as Instruction, Op, Threadblock
+from msccl.language.types import ChunkRef, MscclppInstruction as Instruction, Op, ReplicationPolicy, Threadblock
 
 
 class MscclppInstructionDAG(InstructionDAG):
@@ -631,7 +631,7 @@ class MscclppInstructionDAG(InstructionDAG):
 
         self._parallel_signal_wait()
 
-    def replicate(self, instances: int, instance_policy: InstancePolicy):
+    def replicate(self, instances: int, replication_policy: ReplicationPolicy):
         # update op step
         for rank, rank_tbs in enumerate(self.tbs):
             for _, tb in rank_tbs.items():
@@ -661,7 +661,7 @@ class MscclppInstructionDAG(InstructionDAG):
             iref = ChunkRef(ref.rank, ref.buffer, iindex, ref.size)
             return iref
 
-        if instance_policy == InstancePolicy.duplicated:
+        if replication_policy == ReplicationPolicy.duplicated:
             for i in range(instances):
                 # Generate all the threadblocks and ops
                 for rank, rank_tbs in enumerate(self.tbs):
