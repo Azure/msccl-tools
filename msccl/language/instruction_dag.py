@@ -216,7 +216,7 @@ class InstructionDAG(ABC):
         pass
 
 
-class InstructionDAG(InstructionDAG):
+class MscclInstructionDAG(InstructionDAG):
 
     def __init__(self, num_ranks, buffers):
         super().__init__(num_ranks, buffers)
