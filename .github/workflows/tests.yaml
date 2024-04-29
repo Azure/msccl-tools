@@ -49,7 +49,7 @@ jobs:
         cp tests/generate_exmpale_results.py $RUNNER_TEMP/
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/main-outputs/ -c tests/configs/example-config.json
+        python $RUNNER_TEMP/generate_exmpale_results.py examples/mscclang/ $RUNNER_TEMP/tests/pr-outputs/ tests/configs/example-config.json
     - name: Checkout main branch
       uses: actions/checkout@v4
       with:
@@ -60,7 +60,7 @@ jobs:
         pip install -r requirements.txt
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/pr-outputs/ -c tests/configs/example-config.json
+        python $RUNNER_TEMP/generate_exmpale_results.py examples/mscclang/ $RUNNER_TEMP/tests/main-outputs/ tests/configs/example-config.json
     - name: Compare outputs
       run: |
         diff -rw $RUNNER_TEMP/tests/main-outputs/ $RUNNER_TEMP/tests/pr-outputs/
