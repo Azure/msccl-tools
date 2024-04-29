@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from msccl.language.buffer import Buffer
-from msccl.language.channel import ChannelType
 
 
 @dataclass
@@ -32,7 +31,6 @@ class Gpu:
     output_chunks: int = 0
     scratch_chunks: int = 0
     scratch: dict = field(default_factory=dict)
-    channels: dict = field(default_factory=dict)
 
     def scratch_size(self):
         return max((idx for addr, idx in self.scratch.items()), default=-1) + 1
@@ -46,7 +44,6 @@ class Threadblock:
     recv: int = -1
     ops: list = field(default_factory=list)
     rbid: int = -1  # threadblock id of the receiver
-    channels: list = field(default_factory=list)
 
     def __eq__(self, other):
         return self is other
@@ -73,8 +70,6 @@ class ThreadblockPolicy(Enum):
 
 
 class ReplicationPolicy(Enum):
-    # this means pack multi instrances to deal with the same chunk and share the channels
-    packed = "packed"
     # this means each instance deal with the different chunk
     # Chunk A, Chunk B -> Chunk A0, Chunk B0, Chunk A1, Chunk B1
     duplicated = "duplicated"
@@ -131,7 +126,6 @@ class Op:
     recv_match = None
     send_match = None
     channel: int = -1
-    channel_type: ChannelType = ChannelType.none
     srcs: list = field(default_factory=list)
     dsts: list = field(default_factory=list)
 
