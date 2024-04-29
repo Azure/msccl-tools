@@ -16,9 +16,9 @@ jobs:
     name: Test with Python ${{ matrix.python-version }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install msccl and dependencies
@@ -28,3 +28,37 @@ jobs:
     - name: Run tests and check at least 85% coverage
       run: |
         pytest
+
+  compare_outputs:
+    runs-on: ubuntu-latest
+    name: Compare outputs
+
+    steps:
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Checkout main branch
+      uses: actions/checkout@v4
+      with:
+        ref: main
+    - name: Install msccl and dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: generate outputs
+      run: |
+        python tests/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/main-outputs/ -c tests/configs/example-config.json
+    - name: Checkout current branch
+      uses: actions/checkout@v4
+    - name: Install msccl and dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: generate outputs
+      run: |
+        python tests/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/pr-outputs/ -c tests/configs/example-config.json
+    - name: Compare outputs
+      run: |
+        diff -rw $RUNNER_TEMP/tests/main-outputs/ $RUNNER_TEMP/tests/pr-outputs/
+
