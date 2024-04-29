@@ -40,17 +40,6 @@ def manual_assign_tbs(rank_dag):
                 f"Threadblock {tbid} send:{tb.send} recv:{tb.recv} channel:{tb.channel}\n" \
                 f"Operation send:{op.dst.rank if op.is_send() else -1} recv:{op.dst.rank if op.is_recv() else -1} channel:{op.channel}")
 
-def convert_to_exectuion_plan(instr_dag):
-    ops = instr_dag.convert_set_list()
-    ops = sorted(ops, key=lambda x: x.step)
-    for op in ops:
-        rank = op.rank
-        tbid = op.tb
-        if tbid not in instr_dag.tbs[rank]:
-            instr_dag.tbs[rank][tbid] = Threadblock(id=tbid)
-        tb = instr_dag.tbs[rank][tbid]
-        tb.ops.append(op)
-
 def _get_tb_options(mapping, send, recv, channel, num_tbs):
     options = []
     for tbid, tb in mapping.items():

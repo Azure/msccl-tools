@@ -38,7 +38,6 @@ class Gpu:
 
 @dataclass
 class Threadblock:
-    id: int = -1
     channel: int = -1
     send: int = -1
     recv: int = -1
