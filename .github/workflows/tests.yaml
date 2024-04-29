@@ -38,6 +38,18 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.8
+    - name: Checkout current branch
+      uses: actions/checkout@v4
+    - name: Install msccl and dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Copy test script to temp directory
+      run: |
+        cp tests/generate_exmpale_results.py $RUNNER_TEMP/
+    - name: generate outputs
+      run: |
+        python $RUNNER_TEMP/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/main-outputs/ -c tests/configs/example-config.json
     - name: Checkout main branch
       uses: actions/checkout@v4
       with:
@@ -48,16 +60,7 @@ jobs:
         pip install -r requirements.txt
     - name: generate outputs
       run: |
-        python tests/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/main-outputs/ -c tests/configs/example-config.json
-    - name: Checkout current branch
-      uses: actions/checkout@v4
-    - name: Install msccl and dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: generate outputs
-      run: |
-        python tests/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/pr-outputs/ -c tests/configs/example-config.json
+        python $RUNNER_TEMP/generate_exmpale_results.py -i examples/mscclang/ -o $RUNNER_TEMP/tests/pr-outputs/ -c tests/configs/example-config.json
     - name: Compare outputs
       run: |
         diff -rw $RUNNER_TEMP/tests/main-outputs/ $RUNNER_TEMP/tests/pr-outputs/
