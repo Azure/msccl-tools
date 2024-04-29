@@ -3,7 +3,6 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Union
 
 from msccl.language.buffer import Buffer
 from msccl.language.channel import ChannelType
@@ -104,27 +103,6 @@ class Instruction(Enum):
         return self.value
 
 
-class MscclppInstruction(Enum):
-    nop = "nop"
-    read_reduce_copy = "rrc"
-    read_reduce_copy_send = "rrcs"
-    reduce_send = "rs"
-    copy = "copy"
-    reduce = "reduce"
-    copy_packet = "cpkt"
-    reduce_send_packet = "rspkt"
-    reduce_packet = "rpkt"
-    put = "put"
-    put_packet = "ppkt"
-    get = "get"
-    wait = "wait"
-    signal = "signal"
-    flush = "flush"
-
-    def __str__(self):
-        return self.value
-
-
 @dataclass
 class ChunkRef:
     rank: int
@@ -138,7 +116,7 @@ class ChunkRef:
 
 @dataclass
 class Op:
-    inst: Union[Instruction, MscclppInstruction]
+    inst: Instruction
     rank: int
     src: ChunkRef
     dst: ChunkRef

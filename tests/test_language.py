@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 
 import msccl
-from msccl.language.types import MscclppInstruction
 from msccl.topologies import line, fully_connected
 from msccl.language import *
 from msccl.language.routines import *
@@ -202,32 +201,6 @@ def test_instruction_fusion():
     assert lowered_prgm.gpus[1].threadblocks[0].ops[1].inst == Instruction.recv
     assert lowered_prgm.gpus[2].threadblocks[0].ops[0].inst == Instruction.recv_reduce_copy_send
 
-
-def test_instruction_fusion_mscclpp():
-    topology = fully_connected(3)
-    collective = AllReduce(3, 3, True)
-    prgm = MSCCLPPProgram("allreduce", topology, collective, 1)
-    with prgm:
-        c01 = chunk(1, Buffer.input, 0, 3).reduce(chunk(0, Buffer.input, 0, 3), recvtb=0)
-        c01.signal(2, Buffer.input, 0, sendtb=0)
-        c012 = chunk(2, Buffer.input, 0, 3)
-        c012.wait(1, Buffer.input, 0, recvtb=0)
-        c012.reduce(c01, recvtb=0).put(0, Buffer.input, 0, sendtb=0)
-        c012.signal(0, Buffer.input, 0, sendtb=0)
-        c0 = chunk(0, Buffer.input, 0, 3)
-        c0.wait(2, Buffer.input, 0, recvtb=0)
-        c0.put(1, Buffer.input, 0, sendtb=0)
-        assert Check()
-    lowered_prgm = prgm.lower()
-    assert lowered_prgm.gpus[0].threadblocks[0].ops[0].inst == MscclppInstruction.wait
-    assert lowered_prgm.gpus[0].threadblocks[0].ops[1].inst == MscclppInstruction.put
-    assert lowered_prgm.gpus[1].threadblocks[0].ops[0].inst == MscclppInstruction.read_reduce_copy
-    assert lowered_prgm.gpus[1].threadblocks[0].ops[1].inst == MscclppInstruction.signal
-    assert lowered_prgm.gpus[2].threadblocks[0].ops[0].inst == MscclppInstruction.wait
-    assert lowered_prgm.gpus[2].threadblocks[0].ops[1].inst == MscclppInstruction.read_reduce_copy_send
-    assert lowered_prgm.gpus[2].threadblocks[0].ops[2].inst == MscclppInstruction.signal
-
-
 def test_replication():
     topology = fully_connected(2)
     collective = AllToAll(2, 1, False)
@@ -314,38 +287,4 @@ def test_routines_allreduce_nodes():
             c.reduce(chunk(r, Buffer.output, exchange_index, 4))
             c = c.copy(r, Buffer.output, exchange_index)
         XML()
-        assert Check()
-
-def test_routines_allreduce_packet_inplace_mscclpp():
-    size = 8
-    topology = fully_connected(size)
-    collective = AllReduce(size, size * size, True)
-    with MSCCLPPProgram("allreduce_packet", topology, collective, 2, protocol="LL"):
-        # Each rank sends the nth chunk to the nth rank into scratch space
-        for r1 in range(size):
-            for tb in range(size):
-                if tb == r1:
-                    continue
-                remote_rank = tb
-                index = remote_rank * size
-                c = chunk(r1, Buffer.input, index, size)
-                c.put_packet(remote_rank, "scratch", index=r1 * size, sendtb=tb)
-        # Each rank performs a local reduction on the nth chunk
-        # Utilize 8 threadblocks for this reduction for better parallelism
-        for r in range(size):
-            for index in range(size):
-                c = chunk(r, Buffer.input, r * size + index)
-                for peer in range(size):
-                    if peer != r:
-                        c.reduce_packet(chunk(r, "scratch", peer * size + index), recvtb=index)
-                for peer in range(size):
-                    if peer != r:
-                        c.put_packet(peer, "scratch", (size * size) + r * size + index, sendtb=index)
-        # Each rank get final result from scratch space
-        for r in range(size):
-            for peer in range(size):
-                if peer != r:
-                    c = chunk(r, "scratch", size * size + peer * size, size)
-                    c.copy_packet(r, Buffer.input, peer * size, sendtb=peer)
-        Json()
         assert Check()

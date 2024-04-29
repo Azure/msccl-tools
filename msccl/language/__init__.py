@@ -7,9 +7,6 @@ from msccl.language.tb_assignment import *
 from msccl.language.chunk import *
 from msccl.language.buffer import *
 from msccl.language.instruction_dag import *
-import msccl.language.mscclpp as mscclpp
-from msccl.language.mscclpp import *
-from typing import Union
 
 from msccl.language.types import ReplicationPolicy, ThreadblockPolicy
 
@@ -21,10 +18,8 @@ _current_program = None
 
 def _curr():
     global _current_program
-    if _current_program == None and mscclpp._current_program == None:
-        raise RuntimeError("No Program in context")
     if _current_program == None:
-        return mscclpp._current_program
+        raise RuntimeError("No Program in context")
     return _current_program
 
 
@@ -284,7 +279,7 @@ def Print():
     _curr().print_chunk_dag()
 
 
-def chunk(rank, buffer, index, size=1) -> Union[mscclpp.Ref, Ref]:
+def chunk(rank, buffer, index, size=1) -> Ref:
     if _curr().buffers[rank][buffer][index] is None:
         return None
     return _curr().get_ref(rank, buffer, index, size)

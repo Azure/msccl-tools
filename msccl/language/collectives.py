@@ -3,12 +3,11 @@ from msccl.language.ir import Buffer
 from msccl.language import *
 
 class Collective():
-    def __init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups = 1):
+    def __init__(self, num_ranks, chunk_factor, inplace):
         self.num_ranks = num_ranks
         self.chunk_factor = chunk_factor
         self.inplace = inplace
         self.name = "custom"
-        self.num_chunk_groups = num_chunk_groups
 
     def init_buffers(self):
         pass
