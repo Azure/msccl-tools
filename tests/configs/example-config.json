@@ -20,6 +20,10 @@
         "args": ["2", "1"]
     },
     {
+        "filename": "allreduce_a100_allpairs.py",
+        "args": ["2", "4"]
+    },
+    {
         "filename": "allreduce_a100_ncv4_v2.py",
         "args": ["4", "2"]
     },
