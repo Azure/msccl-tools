@@ -9,7 +9,7 @@
     },
     {
         "filename": "allgather_recursive_doubling.py",
-        "args": ["8", "4"]
+        "args": ["2", "4"]
     },
     {
         "filename": "allgather_ring.py",
