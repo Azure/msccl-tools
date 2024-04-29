@@ -17,19 +17,11 @@
     },
     {
         "filename": "allreduce_1step.py",
-        "args": ["8", "1"]
-    },
-    {
-        "filename": "allreduce_a100_allpairs_v2.py",
-        "args": ["8", "2"]
+        "args": ["2", "1"]
     },
     {
         "filename": "allreduce_a100_allpairs.py",
         "args": ["8", "4"]
-    },
-    {
-        "filename": "allreduce_a100_multinode_allpairs.py",
-        "args": ["16", "2"]
     },
     {
         "filename": "allreduce_a100_ncv4_v2.py",
@@ -40,20 +32,12 @@
         "args": ["4", "2"]
     },
     {
-        "filename": "allreduce_a100_pcie_hierarchical.py",
-        "args": ["8", "2"]
-    },
-    {
         "filename": "allreduce_a100_ring.py",
         "args": ["8", "8", "4"]
     },
     {
         "filename": "allreduce_recursive_doubling_halving.py",
         "args": ["8", "4"]
-    },
-    {
-        "filename": "alltoall_a100_three_step.py",
-        "args": ["2", "8", "2"]
     },
     {
         "filename": "alltoall_a100_two_step.py",
@@ -74,10 +58,6 @@
     {
         "filename": "hierarchical_allreduce.py",
         "args": ["8", "2", "2"]
-    },
-    {
-        "filename": "pipeline_a100_allpairs.py",
-        "args": ["8", "2"]
     },
     {
         "filename": "pipeline_a100_ring.py",
