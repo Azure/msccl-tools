@@ -31,13 +31,16 @@ jobs:
 
   compare_outputs:
     runs-on: ubuntu-latest
-    name: Compare outputs
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10']
+    name: Compare outputs with Python ${{ matrix.python-version }}
 
     steps:
-    - name: Set up Python 3.8
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8
+        python-version: ${{ matrix.python-version }}
     - name: Checkout current branch
       uses: actions/checkout@v4
     - name: Install msccl and dependencies
@@ -46,11 +49,11 @@ jobs:
         pip install -r requirements.txt
     - name: Copy test script/config to temp directory
       run: |
-        cp tests/generate_exmpale_results.py $RUNNER_TEMP/
+        cp tests/generate_example_results.py $RUNNER_TEMP/
         cp tests/configs/example-config.json $RUNNER_TEMP/
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_exmpale_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/pr-outputs/
+        python $RUNNER_TEMP/generate_example_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/pr-outputs/
     - name: Checkout main branch
       uses: actions/checkout@v4
       with:
@@ -61,7 +64,7 @@ jobs:
         pip install -r requirements.txt
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_exmpale_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/main-outputs/
+        python $RUNNER_TEMP/generate_example_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/main-outputs/
     - name: Compare outputs
       run: |
         diff -rw $RUNNER_TEMP/tests/main-outputs/ $RUNNER_TEMP/tests/pr-outputs/
