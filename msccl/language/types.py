@@ -6,7 +6,6 @@ from enum import Enum
 from typing import Union
 
 from msccl.language.buffer import Buffer
-from msccl.language.mscclpp.channel import ChannelType
 
 
 @dataclass
@@ -134,6 +133,23 @@ class ChunkRef:
 
     def __hash__(self):
         return hash((self.rank, self.buffer, self.index, self.size))
+
+
+class ChannelType(Enum):
+    proxy = "proxy"
+    sm = "sm"
+    none = "none"
+
+    def __str__(self):
+        return self.value
+
+
+@dataclass(frozen=True)
+class Channel:
+    srcBuffer: Buffer
+    dstBuffer: Buffer
+    type: ChannelType
+    connected_to: int
 
 
 @dataclass

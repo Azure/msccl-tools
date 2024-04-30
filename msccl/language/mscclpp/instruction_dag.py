@@ -3,7 +3,7 @@
 
 
 from msccl.language.buffer import Buffer
-from msccl.language.mscclpp.channel import Channel, ChannelType
+from msccl.language.types import Channel, ChannelType
 from msccl.language.instruction_dag import (
     buf_dst_src_match,
     merge_op,

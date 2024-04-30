@@ -3,6 +3,7 @@
 
 from msccl.collectives import Collective
 from msccl.language.buffer import *
+from msccl.language.types import ChannelType
 from msccl.language.mscclpp.ir import *
 from msccl.language.mscclpp.instruction_dag import MscclppInstructionDAG
 from msccl.language.tb_assignment import *
