@@ -18,6 +18,7 @@ def _verify_tb_op_compatible(tb, op):
     channel_ok = tb.channel == op.channel or tb.channel == -1 or op.channel == -1
     return sends_ok and recvs_ok and channel_ok
 
+
 # Manual threadblock, channel assignment
 def manual_assign_tbs(rank_dag):
     instrs = topo_sort_instrs(rank_dag)
@@ -33,12 +34,27 @@ def manual_assign_tbs(rank_dag):
             tb.channel = op.channel if op.channel != -1 else 0
             tb.send = op.dst.rank if op.is_send() else tb.send
             tb.recv = op.src.rank if op.is_recv() else tb.recv
-            op.step = len(tb.ops)-1
-            rank_dag.num_channels[rank] = max(op.channel+1, rank_dag.num_channels[rank] )
+            op.step = len(tb.ops) - 1
+            rank_dag.num_channels[rank] = max(op.channel + 1, rank_dag.num_channels[rank])
         else:
-            raise Exception(f"Illegal threadblock assignment. Trying to add {op} to threadblock {tbid}\n" \
-                f"Threadblock {tbid} send:{tb.send} recv:{tb.recv} channel:{tb.channel}\n" \
-                f"Operation send:{op.dst.rank if op.is_send() else -1} recv:{op.dst.rank if op.is_recv() else -1} channel:{op.channel}")
+            raise Exception(
+                f"Illegal threadblock assignment. Trying to add {op} to threadblock {tbid}\n"
+                f"Threadblock {tbid} send:{tb.send} recv:{tb.recv} channel:{tb.channel}\n"
+                f"Operation send:{op.dst.rank if op.is_send() else -1} recv:{op.dst.rank if op.is_recv() else -1} channel:{op.channel}"
+            )
+
+
+def convert_to_exectuion_plan(instr_dag):
+    ops = instr_dag.convert_set_list()
+    ops = sorted(ops, key=lambda x: x.step)
+    for op in ops:
+        rank = op.rank
+        tbid = op.tb
+        if tbid not in instr_dag.tbs[rank]:
+            instr_dag.tbs[rank][tbid] = Threadblock(id=tbid)
+        tb = instr_dag.tbs[rank][tbid]
+        tb.ops.append(op)
+
 
 def _get_tb_options(mapping, send, recv, channel, num_tbs):
     options = []
@@ -53,8 +69,9 @@ def _get_tb_options(mapping, send, recv, channel, num_tbs):
         if channel_ok and ((tb_s == send and send != -1) or (tb_r == recv and recv != -1)):
             return [tbid]
         if sender_ok and receiver_ok and channel_ok:
-             options.append(tbid)
+            options.append(tbid)
     return options
+
 
 def auto_assign_tbs(rank_dag):
     instrs = topo_sort_instrs(rank_dag)
@@ -71,35 +88,40 @@ def auto_assign_tbs(rank_dag):
         channel = 0 if op.channel == -1 else op.channel
         # Get all possible TBs this can be mapped to
         tb_options = _get_tb_options(rank_dag.tbs[rank], s, r, channel, rank_tbids[rank])
-        if len(tb_options) == 0: # If there are no options, create a new threadblock
+        if len(tb_options) == 0:  # If there are no options, create a new threadblock
             tbid = rank_tbids[rank]
             rank_dag.tbs[rank][tbid] = Threadblock(send=s, recv=r, channel=channel)
             rank_tbids[rank] += 1
         else:
             tbid = tb_options[0]
             for tbid_opt in tb_options:
-                if current_tb_step[rank][tbid_opt] < current_tb_step[rank][tbid] and _verify_tb_op_compatible(rank_dag.tbs[rank][tbid], op):
+                if current_tb_step[rank][tbid_opt] < current_tb_step[rank][tbid] and _verify_tb_op_compatible(
+                    rank_dag.tbs[rank][tbid], op
+                ):
                     tbid = tbid_opt
 
         tb = rank_dag.tbs[rank][tbid]
-        assert _verify_tb_op_compatible(tb, op), f"Failing: Operations uses channel {op.channel}, send:{s} recv:{r} {op}\n" \
-                f"Threadblock uses send:{tb.send} recv:{tb.recv} channel:{tb.channel}"
+        assert _verify_tb_op_compatible(tb, op), (
+            f"Failing: Operations uses channel {op.channel}, send:{s} recv:{r} {op}\n"
+            f"Threadblock uses send:{tb.send} recv:{tb.recv} channel:{tb.channel}"
+        )
 
-        rank_dag.num_channels[rank] = max(rank_dag.num_channels[rank], channel+1)
+        rank_dag.num_channels[rank] = max(rank_dag.num_channels[rank], channel + 1)
 
         tb.ops.append(op)
         tb.send = op.dst.rank if op.is_send() else tb.send
         tb.recv = op.src.rank if op.is_recv() else tb.recv
 
-        op.step = len(tb.ops)-1
+        op.step = len(tb.ops) - 1
         op.tb = tbid
         current_tb_step[rank][tbid] = op.chunk_step
+
 
 # Topologically orders instructions so that (1): Sends occur before their receives
 # (2): Dependent instructions occur before
 def topo_sort_instrs(rank_dag):
     def priority(op):
-        return ((op.chunk_step, -op.priority, op.dst.index))
+        return (op.chunk_step, -op.priority, op.dst.index)
 
     visited = set()
     ops = []
@@ -127,9 +149,13 @@ def topo_sort_instrs(rank_dag):
                     heapq.heappush(ops, (priority(o), o))
     return ordered
 
+
 def channel_assignment(instrs, rank_dag):
     def all_channels():
-        return set([x for x in range(32)])    # First handle flows - if an instruction at Rx is fused Rw->Rx->Ry and takes c
+        return set(
+            [x for x in range(32)]
+        )  # First handle flows - if an instruction at Rx is fused Rw->Rx->Ry and takes c
+
     # Then flow Rw->Rx->Rz must be ib a different channel c' where c!=c'
     rank2sendch = [defaultdict(all_channels) for _ in range(rank_dag.num_ranks)]
     rank2recvch = [defaultdict(all_channels) for _ in range(rank_dag.num_ranks)]
@@ -137,6 +163,7 @@ def channel_assignment(instrs, rank_dag):
     # DFS through the InstructionDAG identifying flows
     def valid_send_ch(sender, receiver, ch):
         return ch in rank2sendch[sender][receiver]
+
     def valid_recv_ch(sender, receiver, ch):
         return ch in rank2recvch[receiver][sender]
 
@@ -151,13 +178,14 @@ def channel_assignment(instrs, rank_dag):
             rank2sendch[sender][receiver].remove(ch)
         if ch in rank2recvch[receiver][sender]:
             rank2recvch[receiver][sender].remove(ch)
+
     flows = []
     flow_channels = []
 
     def create_flow(f):
         flow = set()
         for i in range(1, len(f)):
-            flow.add((f[i-1], f[i]))
+            flow.add((f[i - 1], f[i]))
         return flow
 
     def dfs(op, channels, f):
@@ -179,7 +207,7 @@ def channel_assignment(instrs, rank_dag):
                     ch = op.channel
                 else:
                     ch = is_matching_flow(flow)
-                    if ch == -1: # No flow matched - use the smallest available channel
+                    if ch == -1:  # No flow matched - use the smallest available channel
                         ch = min(channels)
                         flows.append(flow)
                         flow_channels.append(ch)
