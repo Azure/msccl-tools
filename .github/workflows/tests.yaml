@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_hash:
-        description: 'Git SHA or branch to comapre with'
+        description: 'The commit hash which would be compared to'
         required: true
         default: 'main'
   push:
@@ -60,15 +60,10 @@ jobs:
     - name: generate outputs
       run: |
         python $RUNNER_TEMP/generate_test_results.py examples/mscclang/ $RUNNER_TEMP/test-config.json $RUNNER_TEMP/tests/pr-outputs/
-    # - name: Checkout specific branch
-    #   if: github.event_name == 'workflow_dispatch'
-    #   uses: actions/checkout@v4
-    #   with:
-    #     ref: ${{ github.event.inputs.commit_hash }}
     - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: 'main'
+      uses: actions/checkout@v4
+      with:
+        ref: main
     - name: Install msccl and dependencies
       run: |
         pip install --upgrade pip
