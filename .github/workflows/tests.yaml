@@ -1,6 +1,12 @@
 name: Tests
 
 on:
+  workflow_dispatch:
+    inputs:
+      commit_hash:
+        description: 'The commit hash which would be compared to'
+        required: true
+        default: 'main'
   push:
   pull_request:
     branches: [ main ]
@@ -21,7 +27,7 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install msccl and dependencies
+    - name: Install msccl-tools and dependencies
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
@@ -43,28 +49,28 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Checkout current branch
       uses: actions/checkout@v4
-    - name: Install msccl and dependencies
+    - name: Install msccl-tools and dependencies
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
     - name: Copy test script/config to temp directory
       run: |
-        cp tests/generate_example_results.py $RUNNER_TEMP/
-        cp tests/configs/example-config.json $RUNNER_TEMP/
+        cp tests/generate_test_results.py $RUNNER_TEMP/
+        cp tests/configs/test-config.json $RUNNER_TEMP/
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_example_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/pr-outputs/
+        python $RUNNER_TEMP/generate_test_results.py examples/mscclang/ $RUNNER_TEMP/test-config.json $RUNNER_TEMP/tests/pr-outputs/
     - name: Checkout main branch
       uses: actions/checkout@v4
       with:
-        ref: main
+        ref: ${{ inputs.commit_hash }}
     - name: Install msccl and dependencies
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_example_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/main-outputs/
+        python $RUNNER_TEMP/generate_test_results.py examples/mscclang/ $RUNNER_TEMP/test-config.json $RUNNER_TEMP/tests/main-outputs/
     - name: Compare outputs
       run: |
         diff -rw $RUNNER_TEMP/tests/main-outputs/ $RUNNER_TEMP/tests/pr-outputs/
