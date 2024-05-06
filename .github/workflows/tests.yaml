@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       commit_hash:
-        description: 'The commit hash which would be compared to'
+        description: 'The git commit hash to compare against'
         required: true
-        default: 'main'
+        default: 'fa5accc63ac39840422ff0d6b0ee875706c95e90' # legacy main branch commit hash
   push:
   pull_request:
     branches: [ main ]
