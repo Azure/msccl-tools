@@ -62,6 +62,7 @@ jobs:
         python $RUNNER_TEMP/generate_test_results.py examples/mscclang/ $RUNNER_TEMP/test-config.json $RUNNER_TEMP/tests/pr-outputs/
     - name: Checkout main branch
       uses: actions/checkout@v4
+      if: github.event_name == 'pull_request' || github.event_name == 'push'
       with:
         ref: main
     - name: Install msccl and dependencies
