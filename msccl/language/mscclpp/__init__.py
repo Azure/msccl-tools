@@ -66,6 +66,18 @@ class MSCCLPPProgram:
             raise RuntimeError("This program is not currently in context")
         _current_program = None
 
+
+    def _convert_to_exectuion_plan(self):
+        ops = self.instr_dag.convert_set_list()
+        ops = sorted(ops, key=lambda x: x.step)
+        for op in ops:
+            rank = op.rank
+            tbid = op.tb
+            if tbid not in self.instr_dag.tbs[rank]:
+                self.instr_dag.tbs[rank][tbid] = Threadblock(id=tbid)
+            tb = self.instr_dag.tbs[rank][tbid]
+            tb.ops.append(op)
+
     # Tracks a send operation on the buffers
     def apply_send(self, src, src_buffer, src_index, dst, dst_buffer, dst_index, size):
         src_buffer, src_index = self.collective.get_buffer_index(src, src_buffer, src_index)
@@ -110,7 +122,7 @@ class MSCCLPPProgram:
 
     # Lower program to MSCCLPP
     def lower(self):
-        convert_to_exectuion_plan(self.instr_dag)
+        self._convert_to_exectuion_plan()
         self.instr_dag.complete_channels()
         if self.instr_fusion:
             self.instr_dag.optimize()
