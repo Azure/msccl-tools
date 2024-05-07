@@ -16,15 +16,15 @@ class Send(Collective):
         rank_buffers = []
         for r in range(self.num_ranks):
             input_buffer = [None] * chunks_per_node
-            output_buffer = [None] * chunks_per_node 
+            output_buffer = [None] * chunks_per_node
             if r == 0:
                 for c in range(chunks_per_node):
                     input_buffer[c] = Chunk(r, c, 2, c)
-            buffers = {Buffer.input : input_buffer, 
+            buffers = {Buffer.input : input_buffer,
                     Buffer.output : output_buffer}
             rank_buffers.append(buffers)
         return rank_buffers
-            
+
 
     # Final state chunk0 from rank0 is in the output buffer of rank2
     def check(self, prog):
@@ -46,14 +46,14 @@ class Reduce(Collective):
         rank_buffers = []
         for r in range(self.num_ranks):
             input_buffer = [None] * chunks_per_node
-            output_buffer = [None] * chunks_per_node 
+            output_buffer = [None] * chunks_per_node
             for c in range(chunks_per_node):
                 input_buffer[c] = Chunk(r, c, -1, c)
-            buffers = {Buffer.input : input_buffer, 
+            buffers = {Buffer.input : input_buffer,
                     Buffer.output : output_buffer}
             rank_buffers.append(buffers)
         return rank_buffers
-            
+
 
     # Final state rank2 has a fully reduced chunk from gpus 0, 1, and 2
     def check(self, prog):

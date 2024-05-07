@@ -9,7 +9,7 @@ import atexit
 import humanfriendly
 
 from msccl.language import MSCCLProgram, ir_to_xml
-from msccl.language.ir import ThreadblockPolicy
+from msccl.language.types import ThreadblockPolicy
 import msccl.language.collectives as lang_collectives
 from msccl.topologies import distributed_fully_connected
 
@@ -62,7 +62,7 @@ def register_synthesis_plan(collective, machine_type, machines=lambda x: True, s
     return decorator
 
 
-def register_msccl_program(local_topology, collective, machine_type, machines=lambda x: True, sizes=None, protocol='Simple', 
+def register_msccl_program(local_topology, collective, machine_type, machines=lambda x: True, sizes=None, protocol='Simple',
     chunk_factor=1, priority=0, collective_obj=None, instances=1, inplace=False, threadblock_policy=ThreadblockPolicy.auto,
     interleaved_replication=True, dependence_nop=False):
     def decorator(fun):
@@ -81,7 +81,7 @@ def register_msccl_program(local_topology, collective, machine_type, machines=la
                     co = lang_collectives.ReduceScatter(topology.num_nodes(), chunk_factor, inplace)
                 else:
                     raise RuntimeError(f'No collective_obj in msccl.language.collectives known for "{collective}"')
-            prog = MSCCLProgram(name, topology, co, instances, protocol, threadblock_policy=threadblock_policy, 
+            prog = MSCCLProgram(name, topology, co, instances, protocol, threadblock_policy=threadblock_policy,
                 interleaved_replication=interleaved_replication, dependence_nop=dependence_nop)
             with prog:
                 fun(prog, machines)

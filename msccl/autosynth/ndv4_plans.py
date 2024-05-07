@@ -7,7 +7,7 @@ from msccl.programs.allreduce_allpairs import allreduce_allpairs
 from msccl.programs.alltoall_a100_yifan import alltoall_hierarchical
 from msccl.programs.alltoall_a100_8kp1 import alltoall_three_step
 from msccl.topologies import fully_connected
-from msccl.language.ir import ThreadblockPolicy
+from msccl.language.types import ThreadblockPolicy
 
 def register_ndv4_plans():
 
@@ -47,4 +47,4 @@ def register_ndv4_plans():
     def ndv4_alltoall_hierarchical_config2(prog, nodes):
         alltoall_hierarchical(num_nodes=nodes, gpus_per_node=8)
 
-        
+

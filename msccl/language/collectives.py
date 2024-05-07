@@ -35,10 +35,10 @@ class AllToAll(Collective):
                 chunk = Chunk(r, index, index//self.chunk_factor, index % self.chunk_factor + r*self.chunk_factor)
                 input_buffer[index] = chunk
             if self.inplace:
-                buffers = {Buffer.input : input_buffer, 
+                buffers = {Buffer.input : input_buffer,
                     Buffer.output : input_buffer}
             else:
-                buffers = {Buffer.input : input_buffer, 
+                buffers = {Buffer.input : input_buffer,
                         Buffer.output : output_buffer}
             rank_buffers.append(buffers)
         return rank_buffers
@@ -69,7 +69,7 @@ class AllGather(Collective):
     def init_buffers(self):
         rank_buffers = []
         if self.inplace:
-            # Inplace AllGather only uses the output buffer   
+            # Inplace AllGather only uses the output buffer
             for r in range(self.num_ranks):
                 output_buffer = [None] * (self.num_ranks * self.chunk_factor)
                 for ch in range(self.chunk_factor):
@@ -83,11 +83,11 @@ class AllGather(Collective):
                 output_buffer = [None] * (self.num_ranks * self.chunk_factor)
                 for ch in range(self.chunk_factor):
                     input_buffer[ch] = Chunk(r, ch, -1, r*self.chunk_factor+ch)
-                buffers = {Buffer.input : input_buffer, 
+                buffers = {Buffer.input : input_buffer,
                            Buffer.output : output_buffer}
                 rank_buffers.append(buffers)
         return rank_buffers
-                
+
     # Expected output buffer for allgather
     def check(self, prog):
         correct = True
@@ -106,7 +106,7 @@ class AllGather(Collective):
                         correct = False
         return correct
 
-    
+
     def get_buffer_index(self, rank, buffer, index):
         # For inplace AllGathers, the input buffer points into the output buffer
         if self.inplace and buffer == Buffer.input:
@@ -115,12 +115,11 @@ class AllGather(Collective):
             return buffer, index
 
 
-            
 class AllReduce(Collective):
 
     def __init__(self, num_ranks, chunk_factor, inplace):
         Collective.__init__(self, num_ranks, chunk_factor, inplace)
-        self.name = 'allreduce'
+        self.name = "allreduce"
 
     def init_buffers(self):
         chunks_per_node = self.chunk_factor
@@ -133,10 +132,10 @@ class AllReduce(Collective):
                 input_buffer.append(Chunk(r, c, -1, c))
             # Input and output buffer are the same.
             if self.inplace:
-                buffers = {Buffer.input : input_buffer, 
+                buffers = {Buffer.input : input_buffer,
                            Buffer.output : input_buffer}
             else:
-                buffers = {Buffer.input : input_buffer, 
+                buffers = {Buffer.input : input_buffer,
                            Buffer.output : output_buffer}
             rank_buffers.append(buffers)
         return rank_buffers
@@ -190,7 +189,7 @@ class ReduceScatter(Collective):
                 for i in range(self.num_ranks):
                     for c in range(self.chunk_factor):
                         input_buffer.append(Chunk(r, i*self.chunk_factor + c, i, c))
-                buffers = {Buffer.input : input_buffer, 
+                buffers = {Buffer.input : input_buffer,
                         Buffer.output : output_buffer}
                 rank_buffers.append(buffers)
         return rank_buffers
@@ -223,4 +222,3 @@ class ReduceScatter(Collective):
             return Buffer.input, index + rank * self.chunk_factor
         else:
             return buffer, index
-
