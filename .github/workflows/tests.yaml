@@ -1,6 +1,12 @@
 name: Tests
 
 on:
+  workflow_dispatch:
+    inputs:
+      commit_hash:
+        description: 'The git commit hash to compare against'
+        required: true
+        default: 'fa5accc63ac39840422ff0d6b0ee875706c95e90' # legacy main branch commit hash
   push:
   pull_request:
     branches: [ main ]
@@ -21,38 +27,47 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install msccl and dependencies
+    - name: Install msccl-tools and dependencies
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
-    - name: Run tests and check at least 85% coverage
+    - name: Run tests and check at least 90% coverage
       run: |
         pytest
 
   compare_outputs:
     runs-on: ubuntu-latest
-    name: Compare outputs
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10']
+    name: Compare outputs with Python ${{ matrix.python-version }}
 
     steps:
-    - name: Set up Python 3.8
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8
+        python-version: ${{ matrix.python-version }}
     - name: Checkout current branch
       uses: actions/checkout@v4
-    - name: Install msccl and dependencies
+    - name: Install msccl-tools and dependencies
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
     - name: Copy test script/config to temp directory
       run: |
-        cp tests/generate_exmpale_results.py $RUNNER_TEMP/
-        cp tests/configs/example-config.json $RUNNER_TEMP/
+        cp tests/generate_test_results.py $RUNNER_TEMP/
+        cp tests/configs/test-config.json $RUNNER_TEMP/
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_exmpale_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/pr-outputs/
+        python $RUNNER_TEMP/generate_test_results.py examples/mscclang/ $RUNNER_TEMP/test-config.json $RUNNER_TEMP/tests/pr-outputs/
+    - name: Checkout specific branch
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.commit_hash }}
     - name: Checkout main branch
       uses: actions/checkout@v4
+      if: github.event_name == 'pull_request' || github.event_name == 'push'
       with:
         ref: main
     - name: Install msccl and dependencies
@@ -61,7 +76,7 @@ jobs:
         pip install -r requirements.txt
     - name: generate outputs
       run: |
-        python $RUNNER_TEMP/generate_exmpale_results.py examples/mscclang/ $RUNNER_TEMP/example-config.json $RUNNER_TEMP/tests/main-outputs/
+        python $RUNNER_TEMP/generate_test_results.py examples/mscclang/ $RUNNER_TEMP/test-config.json $RUNNER_TEMP/tests/main-outputs/
     - name: Compare outputs
       run: |
         diff -rw $RUNNER_TEMP/tests/main-outputs/ $RUNNER_TEMP/tests/pr-outputs/
