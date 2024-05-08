@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Union
 
 from msccl.language.buffer import Buffer
 
@@ -31,6 +32,7 @@ class Gpu:
     output_chunks: int = 0
     scratch_chunks: int = 0
     scratch: dict = field(default_factory=dict)
+    channels: dict = field(default_factory=dict)
 
     def scratch_size(self):
         return max((idx for addr, idx in self.scratch.items()), default=-1) + 1
@@ -43,6 +45,8 @@ class Threadblock:
     recv: int = -1
     ops: list = field(default_factory=list)
     rbid: int = -1  # threadblock id of the receiver
+    id: int = -1
+    channels: list = field(default_factory=list)
 
     def __eq__(self, other):
         return self is other
@@ -75,6 +79,8 @@ class ReplicationPolicy(Enum):
     # this means each instance deal with the different chunk in interleaved way
     # Chunk A, Chunk B -> Chunk A0, Chunk A1, Chunk B0, Chunk B1
     interleaved = "interleaved"
+    # this means pack multi instrances to deal with the same chunk and share the channels
+    packed = "packed"
 
     def __str__(self):
         return self.value
@@ -97,6 +103,27 @@ class Instruction(Enum):
         return self.value
 
 
+class MscclppInstruction(Enum):
+    nop = "nop"
+    read_reduce_copy = "rrc"
+    read_reduce_copy_send = "rrcs"
+    reduce_send = "rs"
+    copy = "copy"
+    reduce = "reduce"
+    copy_packet = "cpkt"
+    reduce_send_packet = "rspkt"
+    reduce_packet = "rpkt"
+    put = "put"
+    put_packet = "ppkt"
+    get = "get"
+    wait = "wait"
+    signal = "signal"
+    flush = "flush"
+
+    def __str__(self):
+        return self.value
+
+
 @dataclass
 class ChunkRef:
     rank: int
@@ -108,9 +135,26 @@ class ChunkRef:
         return hash((self.rank, self.buffer, self.index, self.size))
 
 
+class ChannelType(Enum):
+    proxy = "proxy"
+    sm = "sm"
+    none = "none"
+
+    def __str__(self):
+        return self.value
+
+
+@dataclass(frozen=True)
+class Channel:
+    srcBuffer: Buffer
+    dstBuffer: Buffer
+    type: ChannelType
+    connected_to: int
+
+
 @dataclass
 class Op:
-    inst: Instruction
+    inst: Union[Instruction, MscclppInstruction]
     rank: int
     src: ChunkRef
     dst: ChunkRef
@@ -125,6 +169,7 @@ class Op:
     recv_match = None
     send_match = None
     channel: int = -1
+    channel_type: ChannelType = ChannelType.none
     srcs: list = field(default_factory=list)
     dsts: list = field(default_factory=list)
 
