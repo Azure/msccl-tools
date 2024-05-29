@@ -19,6 +19,9 @@ def remove_op(op: Op):
 
 
 def merge_op(op: Op, other_op: Op):
+    if other_op in op.next:
+        op.next.remove(other_op)
+        other_op.prev.remove(op)
     for p in other_op.prev:
         p.next.remove(other_op)
         p.next.append(op)
@@ -28,7 +31,7 @@ def merge_op(op: Op, other_op: Op):
         n.prev.add(op)
 
     op.prev = op.prev.union(other_op.prev)
-    op.next += other_op.next
+    op.next = list(set(op.next + other_op.next))
 
 
 def same_tb(op1: Op, op2: Op):
