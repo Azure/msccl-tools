@@ -243,7 +243,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -266,7 +266,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -289,7 +289,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -320,7 +320,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -351,7 +351,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -389,7 +389,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -418,7 +418,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
@@ -447,7 +447,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                         next_op.step,
                                     )
                                 )
-                                remove_op(next_op)
+                                merge_op(op, next_op)
                                 tb.ops.remove(next_op)
                                 queue.remove(next_op)
                                 fused = True
