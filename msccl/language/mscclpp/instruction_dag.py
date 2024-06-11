@@ -546,6 +546,8 @@ class MscclppInstructionDAG(InstructionDAG):
                                 tb.ops.remove(seq_op)
                                 queue.remove(seq_op)
                                 fused = True
+                        if fused:
+                            continue
                     queue = queue[1:]
 
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
