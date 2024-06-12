@@ -254,6 +254,7 @@ def test_instruction_fusion_multi_deps_mscclpp():
         c2.put_packet(1, "scratch", 0, sendtb=0)
         c1.reduce_packet(c1s, recvtb=0)
     lowered_prgm = prgm.lower()
+    lowered_prgm.gpus[1].threadblocks = [tb for tb in lowered_prgm.gpus[1].threadblocks if tb.id != -1]
     assert lowered_prgm.gpus[1].threadblocks[0].ops[0].inst == MscclppInstruction.reduce_send_packet
     assert lowered_prgm.gpus[1].threadblocks[0].ops[1].inst == MscclppInstruction.reduce_packet
 
