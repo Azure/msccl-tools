@@ -8,6 +8,7 @@ from msccl.language.instruction_dag import (
     buf_dst_src_match,
     merge_op,
     remove_op,
+    circular_dep_after_merge,
     same_buf_dst,
     same_buf_src,
     same_chan_type,
@@ -234,6 +235,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_count(op, next_op)
                                 and same_buf_dst(op, next_op)
                                 and same_chan_type(op, next_op)
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 op.srcs.append(
                                     (
@@ -257,6 +259,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 next_op.inst == Instruction.reduce
                                 and same_buf_dst(op, next_op)
                                 and same_chan_type(op, next_op)
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 op.srcs.append(
                                     (
@@ -280,6 +283,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 next_op.inst == Instruction.reduce_packet
                                 and same_buf_dst(op, next_op)
                                 and same_chan_type(op, next_op)
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 op.srcs.append(
                                     (
@@ -303,6 +307,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 next_op.inst == Instruction.signal
                                 and same_buf_src(op, next_op)
                                 and same_chan_type(op, next_op)
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 op.dsts.append(
                                     (
@@ -334,6 +339,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 next_op.inst == Instruction.wait
                                 and same_buf_dst(op, next_op)
                                 and same_chan_type(op, next_op)
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 op.srcs.append(
                                     (
@@ -376,6 +382,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_count(op, next_op)
                                 and buf_dst_src_match(op, next_op)
                                 and same_chan_type(op, next_op)
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                                     continue
@@ -404,6 +411,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_count(op, next_op)
                                 and buf_dst_src_match(op, next_op)
                                 and next_op.channel_type == ChannelType.sm
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                                     continue
@@ -433,6 +441,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_count(op, next_op)
                                 and buf_dst_src_match(op, next_op)
                                 and next_op.channel_type == ChannelType.sm
+                                and not circular_dep_after_merge(op, next_op)
                             ):
                                 if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                                     continue
@@ -473,6 +482,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_src_dst_buffer_type(op, seq_op)
                                 and same_chan_type(op, seq_op)
                                 and same_count(op, seq_op)
+                                and not circular_dep_after_merge(op, seq_op)
                             ):
                                 op.dsts.append(
                                     (
@@ -501,6 +511,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_src_dst_buffer_type(op, seq_op)
                                 and same_chan_type(op, seq_op)
                                 and same_count(op, seq_op)
+                                and not circular_dep_after_merge(op, seq_op)
                             ):
                                 op.dsts.append(
                                     (
@@ -529,6 +540,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 and same_src_dst_buffer_type(op, seq_op)
                                 and same_chan_type(op, seq_op)
                                 and same_count(op, seq_op)
+                                and not circular_dep_after_merge(op, seq_op)
                             ):
                                 op.dsts.append(
                                     (
@@ -569,6 +581,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 seq_op.inst == Instruction.signal
                                 and same_src_dst_buffer_type(op, seq_op)
                                 and same_chan_type(op, seq_op)
+                                and not circular_dep_after_merge(op, seq_op)
                             ):
                                 op.dsts.append(
                                     (
@@ -596,6 +609,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 seq_op.inst == Instruction.wait
                                 and same_src_dst_buffer_type(op, seq_op)
                                 and same_chan_type(op, seq_op)
+                                and not circular_dep_after_merge(op, seq_op)
                             ):
                                 op.dsts.append(
                                     (
