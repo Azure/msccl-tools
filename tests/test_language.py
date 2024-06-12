@@ -241,7 +241,8 @@ def test_instruction_fusion_multi_deps_mscclpp():
     collective = AllReduce(3, 1, True)
     prgm = MSCCLPPProgram("allreduce", topology, collective, 1)
     # last reduce_packet depends on put_packets(write after read)
-    # and first reduce_packet(rank 2 put data to rank 1, data put depends on first reduce_packet)
+    # and first reduce_packet(rank 2 put data to rank 1, data put depends on first reduce_packet).
+    # In this case, we don't need to fuse the instructions.
     with prgm:
         c0 = chunk(0, Buffer.input, 0)
         c0.put_packet(1, "scratch", 0, sendtb=0)
