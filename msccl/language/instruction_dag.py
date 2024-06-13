@@ -12,10 +12,14 @@ def remove_op(op: Op):
     for p in op.prev:
         p.next.remove(op)
         p.next += op.next
+        p.next = list(set(p.next))
 
     for n in op.next:
         n.prev.remove(op)
         n.prev = op.prev.union(n.prev)
+
+    op.next = []
+    op.prev = []
 
 
 def merge_op(op: Op, other_op: Op):
@@ -32,6 +36,22 @@ def merge_op(op: Op, other_op: Op):
 
     op.prev = op.prev.union(other_op.prev)
     op.next = list(set(op.next + other_op.next))
+
+
+def circular_dep_after_merge(op: Op, other_op: Op):
+    root = set([op, other_op])
+    frontier = set(op.next)
+    if other_op in frontier:
+        frontier.remove(other_op)
+    frontier = list(frontier.union(other_op.next))
+    while len(frontier) > 0:
+        current = frontier[0]
+        for n in current.next:
+            # The root node will be visited again if there is a circular dependency
+            if n in root:
+                return True
+            frontier.append(n)
+        frontier = frontier[1:]
 
 
 def same_tb(op1: Op, op2: Op):

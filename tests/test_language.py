@@ -236,6 +236,35 @@ def test_instruction_fusion_mscclpp():
     assert lowered_prgm.gpus[2].threadblocks[0].ops[2].inst == MscclppInstruction.signal
 
 
+def test_instruction_fusion_multi_deps_mscclpp():
+    topology = fully_connected(3)
+    collective = AllReduce(3, 1, True)
+    prgm = MSCCLPPProgram("allreduce", topology, collective, 1)
+    # The dependency graph for rank 1 is as follows:
+    # put(0i to 1s) => reduce(1s to 1i) => put(2i to 1s) => reduce(1s to 1i)
+    #                       |  => put(1i to 0s)                      ^
+    #                       |  =>  put(1i to 2s)------------------- -|
+    # put(2i to 1s) => reduce(1s to 1i) for read after write
+    # put(1i to 2s) => reduce(1s to 1i) for write after read
+    # when we try to merge reduce(1s to 1i) => put(2i to 1s) => reduce(1s to 1i),
+    # circular dependency is introduced
+    with prgm:
+        c0 = chunk(0, Buffer.input, 0)
+        c0.put_packet(1, "scratch", 0, sendtb=0)
+        c1s = chunk(1, "scratch", 0)
+        c1 = chunk(1, Buffer.input, 0)
+        c1 = c1.reduce_packet(c1s, recvtb=0)
+        c1.put_packet(0, "scratch", 0, sendtb=0)
+        c1.put_packet(2, "scratch", 0, sendtb=0)
+        c2 = chunk(2, Buffer.input, 0)
+        c2.put_packet(1, "scratch", 0, sendtb=0)
+        c1.reduce_packet(c1s, recvtb=0)
+    lowered_prgm = prgm.lower()
+    lowered_prgm.gpus[1].threadblocks = [tb for tb in lowered_prgm.gpus[1].threadblocks if tb.id != -1]
+    assert lowered_prgm.gpus[1].threadblocks[0].ops[0].inst == MscclppInstruction.reduce_send_packet
+    assert lowered_prgm.gpus[1].threadblocks[0].ops[1].inst == MscclppInstruction.reduce_packet
+
+
 def test_replication():
     topology = fully_connected(2)
     collective = AllToAll(2, 1, False)

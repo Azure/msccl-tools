@@ -236,7 +236,7 @@ def dump_to_json(program: Program):
                     srcs = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs))
                     dst = op.dst
                     src = op.dst  # TODO(binyli): fix this
-                elif op.inst == Instruction.reduce:
+                elif op.inst == Instruction.reduce or op.inst == Instruction.reduce_packet:
                     srcs = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs))
                     dst = op.dst
                 elif op.inst == Instruction.nop:

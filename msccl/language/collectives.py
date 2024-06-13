@@ -122,8 +122,10 @@ class AllGather(Collective):
 
 class AllReduce(Collective):
 
-    def __init__(self, num_ranks, chunk_factor, inplace):
-        Collective.__init__(self, num_ranks, chunk_factor, inplace, num_ranks)
+    def __init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups=None):
+        if num_chunk_groups == None:
+            num_chunk_groups = num_ranks
+        Collective.__init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups)
         self.name = "allreduce"
 
     def init_buffers(self):
