@@ -143,6 +143,9 @@ def ir_to_xml(program: Program, old_format=True, use_scratch=True, pretty_print=
     algo_elem.set("ngpus", str(len(program.gpus)))
     algo_elem.set("coll", program.collective)
     algo_elem.set("inplace", str(1 if program.inplace else 0))
+    algo_elem.set("outofplace", str(0 if program.inplace else 1))
+    algo_elem.set("minBytes", str(0))
+    algo_elem.set("maxBytes", str(0))
     for gpu in program.gpus:
         gpu_elem = ET.SubElement(algo_elem, "gpu")
         gpu_elem.set("id", str(gpu.rank))
