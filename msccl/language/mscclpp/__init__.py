@@ -207,7 +207,7 @@ class Ref(ChunkRef):
     def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
         return self._put(dst, buffer, index, sendtb, chan_type)
 
-    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
+    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm, temp_chunk=None):
         return self._put(dst, buffer, index, sendtb, channel_type, use_packet=True)
 
     def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):

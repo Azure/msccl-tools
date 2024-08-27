@@ -61,8 +61,41 @@ class MscclppInstructionDAG(InstructionDAG):
         return op
 
     # InstructionDAG - adds a put node
-    def add_put(self, rank, send_ref, recv_ref, tb, ch_type, use_packet=False):
+    def add_put(self, rank, send_ref, recv_ref, tb, ch_type, use_packet=False, temp_chunk=None):
         tb_step = self._get_tb_step(rank, tb)
+        if ch_type == ChannelType.proxy and temp_chunk is not None:
+            op = Op(
+                Instruction.transform_to_packet,
+                rank,
+                send_ref,
+                temp_chunk,
+                next=set(),
+                prev=set(),
+                tb=tb,
+                channel_type=ch_type,
+                step=tb_step,
+            )
+            tb_step = self._get_tb_step(rank, tb)
+            op2 = Op(
+                Instruction.put,
+                rank,
+                send_ref,
+                recv_ref,
+                next=set(),
+                prev=set(),
+                tb=tb,
+                channel_type=ch_type,
+                step=tb_step,
+            )
+            buffer = send_ref.buffer
+            index = send_ref.index
+            size = send_ref.size
+            self._read(rank, buffer, index, size, op)
+            self._write(rank, temp_chunk.buffer, temp_chunk.index, temp_chunk.size, op)
+            self._read(rank, temp_chunk.buffer, temp_chunk.index, temp_chunk.size, op2)
+            op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
+            op2.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
+            return op
         if use_packet:
             op = Op(
                 Instruction.put_packet,

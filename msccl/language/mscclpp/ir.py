@@ -12,6 +12,7 @@ _local_src_insts_mscclpp = {
     Instruction.signal,
     Instruction.copy,
     Instruction.copy_packet,
+    Instruction.transform_to_packet,
     Instruction.reduce,
     Instruction.reduce_packet,
     Instruction.reduce_send,
@@ -23,6 +24,7 @@ _local_dst_insts_mscclpp = {
     Instruction.read_reduce_copy,
     Instruction.copy,
     Instruction.copy_packet,
+    Instruction.transform_to_packet,
     Instruction.reduce,
     Instruction.read_reduce_copy_send,
     Instruction.reduce_send,
@@ -256,7 +258,7 @@ def dump_to_json(program: Program):
                     )
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     dsts = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.dsts))
-                elif op.inst == Instruction.copy or op.inst == Instruction.copy_packet:
+                elif op.inst == Instruction.copy or op.inst == Instruction.copy_packet or op.inst == Instruction.transform_to_packet:
                     src = op.src
                     dst = op.dst
                 if op.inst != Instruction.nop:
