@@ -24,17 +24,16 @@ def send_recv(instances):
                 if nghr == r:
                     continue
                 c = chunk(r, Buffer.input, 0)
-                c.put_packet(nghr, "scratch", 0, sendtb=0, channel_type=ChannelType.proxy)
+                c = c.trans_to_packet(r, "scratch", 0, sendtb=0)
+                c.put_packet(nghr, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy, trans_to_packet=False)
 
         for r in range(size):
-            for nghr in range(size):
-                if nghr == r:
-                    continue
-                c = chunk(r, "scratch", 0)
-                c.get_packet(nghr, Buffer.output, 0, recvtb=0, channel_type=ChannelType.proxy)
+            c = chunk(r, "scratch", 1)
+            c.copy_packet(r, Buffer.output, 0, sendtb=0)
 
         Json()
         Check()
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("instances", type=int, help="number of instances")

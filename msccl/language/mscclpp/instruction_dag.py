@@ -24,10 +24,12 @@ class MscclppInstructionDAG(InstructionDAG):
         super().__init__(num_ranks, buffers)
 
     # InstructionDAG - adds a copy node
-    def add_copy(self, rank, send_ref, recv_ref, tb, use_packet=False):
+    def add_copy(self, rank, send_ref, recv_ref, tb, trans_from_packet=False, trans_to_packet=False):
         tb_step = self._get_tb_step(rank, tb)
-        if use_packet:
+        if trans_from_packet:
             op = Op(Instruction.copy_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        elif trans_to_packet:
+            op = Op(Instruction.transform_to_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         else:
             op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         dstbuffer = recv_ref.buffer
@@ -61,44 +63,11 @@ class MscclppInstructionDAG(InstructionDAG):
         return op
 
     # InstructionDAG - adds a put node
-    def add_put(self, rank, send_ref, recv_ref, tb, ch_type, use_packet=False, temp_chunk=None):
+    def add_put(self, rank, send_ref, recv_ref, tb, ch_type, trans_to_packet=False):
         tb_step = self._get_tb_step(rank, tb)
-        if ch_type == ChannelType.proxy and temp_chunk is not None:
+        if trans_to_packet:
             op = Op(
-                Instruction.transform_to_packet,
-                rank,
-                send_ref,
-                temp_chunk,
-                next=set(),
-                prev=set(),
-                tb=tb,
-                channel_type=ch_type,
-                step=tb_step,
-            )
-            tb_step = self._get_tb_step(rank, tb)
-            op2 = Op(
-                Instruction.put,
-                rank,
-                send_ref,
-                recv_ref,
-                next=set(),
-                prev=set(),
-                tb=tb,
-                channel_type=ch_type,
-                step=tb_step,
-            )
-            buffer = send_ref.buffer
-            index = send_ref.index
-            size = send_ref.size
-            self._read(rank, buffer, index, size, op)
-            self._write(rank, temp_chunk.buffer, temp_chunk.index, temp_chunk.size, op)
-            self._read(rank, temp_chunk.buffer, temp_chunk.index, temp_chunk.size, op2)
-            op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
-            op2.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
-            return op
-        if use_packet:
-            op = Op(
-                Instruction.put_packet,
+                Instruction.trans_put_packet,
                 rank,
                 send_ref,
                 recv_ref,
@@ -198,7 +167,7 @@ class MscclppInstructionDAG(InstructionDAG):
         return op
 
     def complete_channels(self):
-        send_op = [Instruction.put, Instruction.signal, Instruction.put_packet]
+        send_op = [Instruction.put, Instruction.signal, Instruction.trans_put_packet]
         recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
@@ -229,7 +198,7 @@ class MscclppInstructionDAG(InstructionDAG):
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
-                    if op.inst == Instruction.put_packet:
+                    if op.inst == Instruction.trans_put_packet:
                         fused = False
                         for next_op in op.next:
                             if next_op.inst == Instruction.signal:
@@ -470,7 +439,7 @@ class MscclppInstructionDAG(InstructionDAG):
                         fused = False
                         for next_op in op.next:
                             if (
-                                next_op.inst == Instruction.put_packet
+                                next_op.inst == Instruction.trans_put_packet
                                 and same_count(op, next_op)
                                 and buf_dst_src_match(op, next_op)
                                 and next_op.channel_type == ChannelType.sm
@@ -564,12 +533,12 @@ class MscclppInstructionDAG(InstructionDAG):
                                 fused = True
                         if fused:
                             continue
-                    elif op.inst == Instruction.put_packet:
+                    elif op.inst == Instruction.trans_put_packet:
                         fused = False
                         if len(queue) > 1:
                             seq_op = queue[1]
                             if (
-                                seq_op.inst == Instruction.put_packet
+                                seq_op.inst == Instruction.trans_put_packet
                                 and same_src_dst_buffer_type(op, seq_op)
                                 and same_chan_type(op, seq_op)
                                 and same_count(op, seq_op)

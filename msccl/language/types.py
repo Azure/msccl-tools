@@ -115,7 +115,7 @@ class MscclppInstruction(Enum):
     reduce_send_packet = "rspkt"
     reduce_packet = "rpkt"
     put = "put"
-    put_packet = "ppkt"
+    trans_put_packet = "ppkt"
     get = "get"
     wait = "wait"
     signal = "signal"

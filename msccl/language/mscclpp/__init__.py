@@ -66,7 +66,6 @@ class MSCCLPPProgram:
             raise RuntimeError("This program is not currently in context")
         _current_program = None
 
-
     def _convert_to_exectuion_plan(self):
         ops = self.instr_dag.convert_set_list()
         ops = sorted(ops, key=lambda x: x.step)
@@ -187,12 +186,8 @@ class Ref(ChunkRef):
             return buffer, self.prog.buffers[remote_rank][buffer].instance_size()
         return buffer, index
 
-    def _put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False):
+    def _put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False, trans_to_packet=True):
         self.prog.check_buffer_exists(dst, buffer)
-        temp_chunk=None
-        if chan_type == ChannelType.proxy:
-            self.prog.check_buffer_exists(self.rank, "scratch")
-            temp_chunk = self.prog.get_ref(self.rank, "scratch", 0, self.size)
         assert self.rank != dst, "Cannot put to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
@@ -201,18 +196,21 @@ class Ref(ChunkRef):
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
         if use_packet:
-            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, use_packet, temp_chunk)
+            if trans_to_packet:
+                self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, trans_to_packet)
+            else:
+                self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type)
             self.prog.instr_dag.add_signal(self.rank, self, dst_chunkref, -1, ChannelType.none)
             self.prog.instr_dag.add_wait(dst, dst_chunkref, self, -1, ChannelType.none)
         else:
-            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, temp_chunk)
+            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type)
         return dst_chunkref
 
     def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
         return self._put(dst, buffer, index, sendtb, chan_type)
 
-    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, channel_type=ChannelType.sm):
-        return self._put(dst, buffer, index, sendtb, channel_type, use_packet=True)
+    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, trans_to_packet=False):
+        return self._put(dst, buffer, index, sendtb, chan_type, use_packet=True, trans_to_packet=trans_to_packet)
 
     def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
         self.prog.check_buffer_exists(src, buffer)
@@ -253,7 +251,7 @@ class Ref(ChunkRef):
         src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
         self.prog.instr_dag.add_wait(receiver, self, src_chunkref, recvtb, chan_type)
 
-    def _copy(self, dst, buffer=None, index=-1, sendtb=-1, use_packet=False):
+    def _copy(self, dst, buffer=None, index=-1, sendtb=-1, trans_from_packet=False, trans_to_packet=False):
         self.prog.check_buffer_exists(dst, buffer)
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
@@ -264,7 +262,7 @@ class Ref(ChunkRef):
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
 
         assert self.rank == dst, "Chunk copy only supports intra-rank communication"
-        self.prog.instr_dag.add_copy(self.rank, self, dst_chunkref, sendtb, use_packet)
+        self.prog.instr_dag.add_copy(self.rank, self, dst_chunkref, sendtb, trans_from_packet, trans_to_packet)
 
         return dst_chunkref
 
@@ -272,16 +270,17 @@ class Ref(ChunkRef):
     def copy(self, dst, buffer=None, index=-1, sendtb=-1):
         return self._copy(dst, buffer, index, sendtb)
 
+    def trans_to_packet(self, dst, buffer=None, index=-1, sendtb=-1):
+        return self._copy(dst, buffer, index, sendtb, trans_from_packet=False, trans_to_packet=True)
+
     def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
-        return self._copy(dst, buffer, index, sendtb, use_packet=True)
+        return self._copy(dst, buffer, index, sendtb, trans_from_packet=True, trans_to_packet=False)
 
     def _reduce(self, other_chunkref, recvtb=-1, channel_type=ChannelType.sm, use_packet=False):
         dst = self.rank
         src = other_chunkref.rank
         assert self.prog.topo.link(src, dst) or src == dst, f"No link from {src} to {dst}"
-        self.prog.apply_reduce(
-            src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
-        )
+        self.prog.apply_reduce(src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size)
         if use_packet:
             assert src == dst, "Packet reduce only supports intra-rank communication"
 
