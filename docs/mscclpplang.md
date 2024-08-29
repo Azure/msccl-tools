@@ -11,7 +11,6 @@ pip install .
 ## How MSCCLPPLang Works
 MSCCLPPLang provides a high-level interface for writing communication algorithms. We treat the communication algorithm as a graph, where the nodes are the data and the edges are the communication operations. The graph is represented as a Python program, which is compiled to a json based execution plan.
 
-=======
 ### Core Concepts
 
 #### Chunk
