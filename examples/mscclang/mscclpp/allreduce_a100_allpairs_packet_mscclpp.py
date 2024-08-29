@@ -21,8 +21,7 @@ def allreduce_allpairs(gpus, instances):
     ):
         rank = 0
         c = chunk(rank, Buffer.input, 0, 1)
-        scartch_chunk = chunk(rank, "scratch", 0, size)
-        c.put_packet(1, "scratch", index=1, -1, ChannelType.proxy, temp_chunk=scartch_chunk)
+        c.put_packet(1, "scratch", index=1, sendtb=0, channel_type=ChannelType.proxy)
         # # Each rank sends the nth chunk to the nth rank into scratch space
         # for r1 in range(size):
         #     for tb in range(size):
