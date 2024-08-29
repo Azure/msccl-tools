@@ -3,7 +3,7 @@ MSCCLPPLang is a Python library for writing high-performance commnunication algo
 
 ## How to Install MSCCLPPLang
 ```bash
-git clone https://github.com/microsoft/msccl-tools.git
+git clone https://github.com/Azure/msccl-tools.git
 cd msccl-tools
 pip install .
 ```
@@ -11,7 +11,7 @@ pip install .
 ## How MSCCLPPLang Works
 MSCCLPPLang provides a high-level interface for writing communication algorithms. We treat the communication algorithm as a graph, where the nodes are the data and the edges are the communication operations. The graph is represented as a Python program, which is compiled to a json based execution plan.
 
-### Core concepts
+### Core Concepts
 
 #### Chunk
 A chunk is a piece of data that is sent between GPUs. It is the basic unit of data in MSCCLPPLang. Chunk can be a piece of data from input buffer, output buffer or intermediate buffer.
@@ -20,7 +20,7 @@ Example of creating a chunk:
 c = chunk(rank, Buffer.input, index, size)
 ```
 - rank: the rank of the GPU that the chunk belongs to.
-- buffer: the buffer that the chunk belongs to. It can be Buffer.input, Buffer.output or Buffer.intermediate.
+- buffer: the buffer that the chunk belongs to. It can be Buffer.input, Buffer.output or Buffer.scratch.
 - index: the index of the chunk in the buffer.
 - size: the size of the chunk.
 
@@ -45,8 +45,8 @@ A channel is a communication channel between two GPUs. It is used to send and re
 
 We can assign operations to a thread block. The thread block is a group of threads that are executed together on the GPU. In the operation function, we can specify the thread block that the operation belongs to via `sendtb` or `recvtb` parameter.
 
-#### Kernel fusion
-MSCCLPPLang provides a kernel fusion mechanism to fuse multiple operations into a single kernel. This can reduce the overhead of launching multiple kernels. When user create the MSCCLPPLang program, it can specify the `instr_fusion` parameter to enable the kernel fusion. By default, the kernel fusion is enabled.
+#### Instruction Fusion
+MSCCLPPLang provides the instruction fusion mechanism to fuse multiple operations into a single kernel. This can reduce the overhead of launching multiple instructions. When user create the MSCCLPPLang program, it can specify the `instr_fusion` parameter to enable the instruction fusion. By default, the instruction fusion is enabled.
 
 ## MSCCLPPLang APIs
 
