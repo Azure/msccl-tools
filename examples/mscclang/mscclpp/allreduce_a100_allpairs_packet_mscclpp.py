@@ -19,40 +19,37 @@ def allreduce_allpairs(gpus, instances):
         instances,
         protocol="LL",
     ):
-        rank = 0
-        c = chunk(rank, Buffer.input, 0, 1)
-        c.put_packet(1, "scratch", index=1, sendtb=0, channel_type=ChannelType.proxy)
-        # # Each rank sends the nth chunk to the nth rank into scratch space
-        # for r1 in range(size):
-        #     for tb in range(size):
-        #         if tb == r1:
-        #             continue
-        #         remote_rank = tb
-        #         index = remote_rank * size
-        #         c = chunk(r1, Buffer.input, index, size)
-        #         c.put_packet(remote_rank, "scratch", index=r1*size, sendtb=tb)
+        # Each rank sends the nth chunk to the nth rank into scratch space
+        for r1 in range(size):
+            for tb in range(size):
+                if tb == r1:
+                    continue
+                remote_rank = tb
+                index = remote_rank * size
+                c = chunk(r1, Buffer.input, index, size)
+                c.put_packet(remote_rank, "scratch", index=r1 * size, sendtb=tb)
 
-        # # Each rank performs a local reduction on the nth chunk
-        # # Utilize 8 threadblocks for this reduction for better parallelism
-        # for r in range(size):
-        #     for index in range(size):
-        #         c = chunk(r, Buffer.input, r * size + index)
-        #         for peer in range(size):
-        #             if peer != r:
-        #                 c.reduce_packet(chunk(r, "scratch", peer * size + index), recvtb=index)
-        #         for peer in range(size):
-        #             if peer != r:
-        #                 c.put_packet(peer, "scratch", (size * size) + r * size + index, sendtb=index)
+        # Each rank performs a local reduction on the nth chunk
+        # Utilize 8 threadblocks for this reduction for better parallelism
+        for r in range(size):
+            for index in range(size):
+                c = chunk(r, Buffer.input, r * size + index)
+                for peer in range(size):
+                    if peer != r:
+                        c.reduce_packet(chunk(r, "scratch", peer * size + index), recvtb=index)
+                for peer in range(size):
+                    if peer != r:
+                        c.put_packet(peer, "scratch", (size * size) + r * size + index, sendtb=index)
 
-        # # Each rank get final result from scratch space
-        # for r in range(size):
-        #     for peer in range(size):
-        #         if peer != r:
-        #             c = chunk(r, "scratch", size * size + peer * size, size)
-        #             c.copy_packet(r, Buffer.input, peer * size, sendtb=peer)
+        # Each rank get final result from scratch space
+        for r in range(size):
+            for peer in range(size):
+                if peer != r:
+                    c = chunk(r, "scratch", size * size + peer * size, size)
+                    c.copy_packet(r, Buffer.input, peer * size, sendtb=peer)
 
         Json()
-        # Check()
+        Check()
 
 
 parser = argparse.ArgumentParser()
