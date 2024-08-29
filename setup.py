@@ -16,7 +16,6 @@ setup(
         'msccl/autosynth/msccl_ndv2_launcher.sh'
     ],
     install_requires=[
-        'dataclasses; python_version < "3.7"',
         'z3-solver',
         'argcomplete',
         'lxml',
@@ -24,5 +23,5 @@ setup(
         'tabulate',
         'igraph'
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.8',
 )
