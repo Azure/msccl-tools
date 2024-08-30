@@ -218,6 +218,7 @@ class Ref(ChunkRef):
     ):
         chunk_ref = self
         if chan_type == ChannelType.proxy:
+            assert temp_buffer is not None, "Need to specify a temporary buffer for proxy channels"
             chunk_ref = self._copy(
                 self.rank, temp_buffer, temp_buffer_index, sendtb, trans_from_packet=False, trans_to_packet=True
             )
