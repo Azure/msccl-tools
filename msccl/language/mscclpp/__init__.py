@@ -186,7 +186,9 @@ class Ref(ChunkRef):
             return buffer, self.prog.buffers[remote_rank][buffer].instance_size()
         return buffer, index
 
-    def _put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False, trans_to_packet=True):
+    def _put(
+        self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False, trans_to_packet=False
+    ):
         self.prog.check_buffer_exists(dst, buffer)
         assert self.rank != dst, "Cannot put to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
@@ -196,10 +198,7 @@ class Ref(ChunkRef):
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
         if use_packet:
-            if trans_to_packet:
-                self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, trans_to_packet)
-            else:
-                self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type)
+            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, trans_to_packet)
             self.prog.instr_dag.add_signal(self.rank, self, dst_chunkref, -1, ChannelType.none)
             self.prog.instr_dag.add_wait(dst, dst_chunkref, self, -1, ChannelType.none)
         else:
