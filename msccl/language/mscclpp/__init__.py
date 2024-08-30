@@ -186,9 +186,7 @@ class Ref(ChunkRef):
             return buffer, self.prog.buffers[remote_rank][buffer].instance_size()
         return buffer, index
 
-    def _put(
-        self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False, trans_to_packet=False
-    ):
+    def _put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, use_packet=False):
         self.prog.check_buffer_exists(dst, buffer)
         assert self.rank != dst, "Cannot put to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
@@ -198,7 +196,7 @@ class Ref(ChunkRef):
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
         if use_packet:
-            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, trans_to_packet)
+            self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, True)
             self.prog.instr_dag.add_signal(self.rank, self, dst_chunkref, -1, ChannelType.none)
             self.prog.instr_dag.add_wait(dst, dst_chunkref, self, -1, ChannelType.none)
         else:
@@ -208,8 +206,22 @@ class Ref(ChunkRef):
     def put(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm):
         return self._put(dst, buffer, index, sendtb, chan_type)
 
-    def put_packet(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.sm, trans_to_packet=True):
-        return self._put(dst, buffer, index, sendtb, chan_type, use_packet=True, trans_to_packet=trans_to_packet)
+    def put_packet(
+        self,
+        dst,
+        buffer=None,
+        index=-1,
+        sendtb=-1,
+        chan_type=ChannelType.sm,
+        temp_buffer=None,
+        temp_buffer_index=-1,
+    ):
+        chunk_ref = self
+        if chan_type == ChannelType.proxy:
+            chunk_ref = self._copy(
+                self.rank, temp_buffer, temp_buffer_index, sendtb, trans_from_packet=False, trans_to_packet=True
+            )
+        return chunk_ref._put(dst, buffer, index, sendtb, chan_type, True)
 
     def get(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
         self.prog.check_buffer_exists(src, buffer)
@@ -268,9 +280,6 @@ class Ref(ChunkRef):
     # Copies the chunk(s) referenced by this chunkref onto Rank dst at location (buffer, index)
     def copy(self, dst, buffer=None, index=-1, sendtb=-1):
         return self._copy(dst, buffer, index, sendtb)
-
-    def trans_to_packet(self, dst, buffer=None, index=-1, sendtb=-1):
-        return self._copy(dst, buffer, index, sendtb, trans_from_packet=False, trans_to_packet=True)
 
     def copy_packet(self, dst, buffer=None, index=-1, sendtb=-1):
         return self._copy(dst, buffer, index, sendtb, trans_from_packet=True, trans_to_packet=False)

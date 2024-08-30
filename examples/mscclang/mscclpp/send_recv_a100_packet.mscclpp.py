@@ -24,8 +24,15 @@ def send_recv(instances):
                 if nghr == r:
                     continue
                 c = chunk(r, Buffer.input, 0)
-                c = c.trans_to_packet(r, "scratch", 0, sendtb=0)
-                c.put_packet(nghr, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy, trans_to_packet=False)
+                c.put_packet(
+                    nghr,
+                    "scratch",
+                    1,
+                    sendtb=0,
+                    chan_type=ChannelType.proxy,
+                    temp_buffer="scratch",
+                    temp_buffer_index=0,
+                )
 
         for r in range(size):
             c = chunk(r, "scratch", 1)

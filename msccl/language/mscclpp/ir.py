@@ -8,7 +8,7 @@ from msccl.language.types import Buffer, ChannelType, Op, Program, MscclppInstru
 
 _local_src_insts_mscclpp: set = {
     Instruction.put,
-    Instruction.trans_put_packet,
+    Instruction.put_packet,
     Instruction.signal,
     Instruction.copy,
     Instruction.copy_packet,
@@ -254,7 +254,7 @@ def dump_to_json(program: Program):
                         "name": op.inst.value,
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
-                elif op.inst == Instruction.put or op.inst == Instruction.trans_put_packet:
+                elif op.inst == Instruction.put or op.inst == Instruction.put_packet:
                     dst_channel_ids = get_channel_ids(
                         op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
                     )
