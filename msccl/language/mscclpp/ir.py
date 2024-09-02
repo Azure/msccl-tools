@@ -273,9 +273,6 @@ def dump_to_json(program: Program):
                 ):
                     src = op.src
                     dst = op.dst
-                elif op.inst == Instruction.transform_to_packet:
-                    src = op.src
-                    dst = op.dst
                 if op.inst != Instruction.nop:
                     instr = {
                         "name": op.inst.value,
