@@ -6,26 +6,34 @@ import json
 
 from msccl.language.types import Buffer, ChannelType, Op, Program, MscclppInstruction as Instruction
 
-_local_src_insts_mscclpp = {
+_local_src_insts_mscclpp: set = {
     Instruction.put,
     Instruction.put_packet,
     Instruction.signal,
     Instruction.copy,
     Instruction.copy_packet,
+    Instruction.transform_to_packet,
     Instruction.reduce,
     Instruction.reduce_packet,
     Instruction.reduce_send,
     Instruction.reduce_send_packet,
 }
-_local_dst_insts_mscclpp = {
+_local_dst_insts_mscclpp: set = {
     Instruction.get,
     Instruction.wait,
     Instruction.read_reduce_copy,
     Instruction.copy,
     Instruction.copy_packet,
+    Instruction.transform_to_packet,
     Instruction.reduce,
     Instruction.read_reduce_copy_send,
     Instruction.reduce_send,
+    Instruction.reduce_packet,
+    Instruction.reduce_send_packet,
+}
+
+_insts_no_need_sync_barrier: set = {
+    Instruction.copy_packet,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
 }
@@ -102,16 +110,18 @@ def ir_to_json(program: Program):
 
     # Do some additional postprocessing of operations:
     # - Expand operations with dependencies with no-ops
-    if program.protocol != "LL":  # TODO(binyli): fix this. Should based on OP type not algorithm
-        for gpu in program.gpus:
-            for tb in gpu.threadblocks:
-                new_ops = []
-                for op in tb.ops:
-                    # Expand extra dependencies into nop operations
-                    for i, dep in enumerate(op.depends):
-                        new_ops.append(Op(Instruction.nop, -1, None, None, [dep]))
+    for gpu in program.gpus:
+        for tb in gpu.threadblocks:
+            new_ops = []
+            for op in tb.ops:
+                if op.inst in _insts_no_need_sync_barrier:
                     new_ops.append(op)
-                tb.ops = new_ops
+                    continue
+                # Expand extra dependencies into nop operations
+                for i, dep in enumerate(op.depends):
+                    new_ops.append(Op(Instruction.nop, -1, None, None, [dep]))
+                new_ops.append(op)
+            tb.ops = new_ops
 
     # update step and tid for ops
     for gpu in program.gpus:
@@ -256,7 +266,11 @@ def dump_to_json(program: Program):
                     )
                     i_buff = {"src": op.src.buffer.value, "dst": op.dst.buffer.value}
                     dsts = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.dsts))
-                elif op.inst == Instruction.copy or op.inst == Instruction.copy_packet:
+                elif (
+                    op.inst == Instruction.copy
+                    or op.inst == Instruction.copy_packet
+                    or op.inst == Instruction.transform_to_packet
+                ):
                     src = op.src
                     dst = op.dst
                 if op.inst != Instruction.nop:

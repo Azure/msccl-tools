@@ -15,7 +15,8 @@ def run_examples(input_folder, configs, output_folder):
         input_file_path = Path(input_folder) / file_name
         # Strip the ".py" from the filename and add ".output"
         base_file_name = file_name[:-3] if file_name.endswith('.py') else file_name
-        output_file_path = Path(output_folder) / f"{base_file_name}.xml"
+        base_file_name = base_file_name.replace("/", "_")
+        output_file_path = Path(output_folder) / f"{base_file_name}.output"
 
         # Construct the command to run the Python script
         command = ["python3", str(input_file_path)] + args

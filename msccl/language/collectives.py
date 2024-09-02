@@ -56,9 +56,7 @@ class AllToAll(Collective):
                     chunk = output[index]
                     expected_origin_index = ch + r * self.chunk_factor
                     if chunk is None or chunk.origin_rank != i or chunk.origin_index != expected_origin_index:
-                        print(
-                            f"Rank {r} chunk {index} is incorrect should be chunk({i},{expected_origin_index}) given {chunk}"
-                        )
+                        print(f"Rank {r} chunk {index} is incorrect should be chunk({i},{expected_origin_index}) given {chunk}")
                         correct = False
         return correct
 
@@ -162,9 +160,7 @@ class AllReduce(Collective):
             for c in range(chunks_per_node):
                 chunk = output[c]
                 if chunk is None or chunk != expected_chunks[c]:
-                    print(
-                        f"Rank {r} chunk {c} is incorrect should be ReduceChunk index {c} from all ranks, given {chunk}"
-                    )
+                    print(f"Rank {r} chunk {c} is incorrect should be ReduceChunk index {c} from all ranks, given {chunk}")
                     correct = False
         return correct
 
@@ -228,3 +224,41 @@ class ReduceScatter(Collective):
             return Buffer.input, index + rank * self.chunk_factor
         else:
             return buffer, index
+
+
+# SendRecv is a collective that sends a chunk from one rank to another
+# It is used to test the correctness of the send and receive instructions
+class SendRecv(Collective):
+    def __init__(self, num_ranks, chunk_factor, inplace):
+        assert num_ranks == 2, "SendRecv only supports 2 ranks"
+        Collective.__init__(self, num_ranks, chunk_factor, inplace)
+        self.name = "sendrecv"
+
+    def init_buffers(self):
+        rank_buffers = []
+        for r in range(self.num_ranks):
+            input_buffer = [None] * self.chunk_factor
+            output_buffer = [None] * self.chunk_factor
+            for c in range(self.chunk_factor):
+                input_buffer[c] = Chunk(r, c, -1, c)
+            buffers = {Buffer.input: input_buffer, Buffer.output: output_buffer}
+            rank_buffers.append(buffers)
+        return rank_buffers
+
+    def check(self, prog):
+        correct = True
+        buff_type = Buffer.input if self.inplace else Buffer.output
+        for r in range(self.num_ranks):
+            output = prog.buffers[r][buff_type]
+            for c in range(self.chunk_factor):
+                chunk = output[c]
+                if chunk is None or chunk.origin_rank != 1 - r or chunk.origin_index != c:
+                    print(f"Rank {r} chunk {c} is incorrect should be ({1 - r}, {c}) given {chunk}")
+                    correct = False
+
+        return correct
+
+    def get_buffer_index(self, rank, buffer, index):
+        if self.inplace and buffer == Buffer.output:
+            return Buffer.input, index
+        return buffer, index

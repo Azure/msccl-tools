@@ -24,10 +24,12 @@ class MscclppInstructionDAG(InstructionDAG):
         super().__init__(num_ranks, buffers)
 
     # InstructionDAG - adds a copy node
-    def add_copy(self, rank, send_ref, recv_ref, tb, use_packet=False):
+    def add_copy(self, rank, send_ref, recv_ref, tb, trans_from_packet=False, trans_to_packet=False):
         tb_step = self._get_tb_step(rank, tb)
-        if use_packet:
+        if trans_from_packet:
             op = Op(Instruction.copy_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+        elif trans_to_packet:
+            op = Op(Instruction.transform_to_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         else:
             op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         dstbuffer = recv_ref.buffer

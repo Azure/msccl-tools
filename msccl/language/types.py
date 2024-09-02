@@ -111,6 +111,7 @@ class MscclppInstruction(Enum):
     copy = "copy"
     reduce = "reduce"
     copy_packet = "cpkt"
+    transform_to_packet = "tpkt"
     reduce_send_packet = "rspkt"
     reduce_packet = "rpkt"
     put = "put"

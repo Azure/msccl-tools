@@ -62,5 +62,25 @@
     {
         "filename": "pipeline_a100_ring.py",
         "args": ["8", "4", "2"]
+    },
+    {
+        "filename": "mscclpp/allreduce_a100_allpairs_packet_mscclpp.py",
+        "args": ["8", "8"]
+    },
+    {
+        "filename": "mscclpp/allreduce_a100_allpairs_sm_mscclpp_get.py",
+        "args": ["8", "8"]
+    },
+    {
+        "filename": "mscclpp/allreduce_a100_allpairs_sm_mscclpp.py",
+        "args": ["8", "8"]
+    },
+    {
+        "filename": "mscclpp/allreduce_a100_ring_mscclpp.py",
+        "args": ["8", "8"]
+    },
+    {
+        "filename": "mscclpp/send_recv_a100_packet.mscclpp.py",
+        "args": ["2"]
     }
 ]

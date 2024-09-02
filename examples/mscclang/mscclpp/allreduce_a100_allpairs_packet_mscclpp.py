@@ -19,7 +19,6 @@ def allreduce_allpairs(gpus, instances):
         instances,
         protocol="LL",
     ):
-
         # Each rank sends the nth chunk to the nth rank into scratch space
         for r1 in range(size):
             for tb in range(size):
@@ -28,7 +27,7 @@ def allreduce_allpairs(gpus, instances):
                 remote_rank = tb
                 index = remote_rank * size
                 c = chunk(r1, Buffer.input, index, size)
-                c.put_packet(remote_rank, "scratch", index=r1*size, sendtb=tb)
+                c.put_packet(remote_rank, "scratch", index=r1 * size, sendtb=tb)
 
         # Each rank performs a local reduction on the nth chunk
         # Utilize 8 threadblocks for this reduction for better parallelism
