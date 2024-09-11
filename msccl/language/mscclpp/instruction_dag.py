@@ -249,7 +249,6 @@ class MscclppInstructionDAG(InstructionDAG):
 
     # rrc(_,_,_,dst,dbuf,di) rrc(_,_,_,dst,dbuf,di) -> rrc(list[src,sbuf,si], dst, dbuf, di)
     # signal(_,_,_,dst,dbuf,di) signal(_,_,_,dst,dbuf,di) -> signal(_,_,_,list[dst,dbuf,di])
-    # flush(_,_,_,dst,dbuf,di) flush(_,_,_,dst,dbuf,di) -> flush(_,_,_,list[dst,dbuf,di])
     # wait(src,sbuf,si,_,_,_) wait(src,sbuf,si,_,_,_) -> wait(list[src,sbuf,si],_,_,_,_])
     # reduce(_,_,_,dst,dbuf,di) reduce(_,_,_,dst,dbuf,di) -> reduce(list[src,sbuf,si], dst, dbuf, di)
     # reduce_packet(_,_,_,dst,dbuf,di) reduce_packet(_,_,_,dst,dbuf,di) -> reduce_packet(list[src,sbuf,si], dst, dbuf, di)
@@ -262,7 +261,6 @@ class MscclppInstructionDAG(InstructionDAG):
             Instruction.reduce_packet: same_buf_dst,
             Instruction.signal: same_buf_src,
             Instruction.wait: same_buf_dst,
-            Instruction.flush: same_buf_src,
         }
 
         for _, rank_tbs in enumerate(self.tbs):
@@ -323,17 +321,17 @@ class MscclppInstructionDAG(InstructionDAG):
                     fused = False
                     if op.inst == Instruction.get:
                         if len(queue) > 1:
-                            fused = optimizer.try_parallel_instruction(
+                            fused = optimizer.try_compact_instruction(
                                 op, tb, queue, Instruction.get, same_src_dst_buffer_type
                             )
                     elif op.inst == Instruction.put:
                         if len(queue) > 1:
-                            fused = optimizer.try_parallel_instruction(
+                            fused = optimizer.try_compact_instruction(
                                 op, tb, queue, Instruction.put, same_src_dst_buffer_type
                             )
                     elif op.inst == Instruction.put_packet:
                         if len(queue) > 1:
-                            fused = optimizer.try_parallel_instruction(
+                            fused = optimizer.try_compact_instruction(
                                 op, tb, queue, Instruction.put_packet, same_src_dst_buffer_type
                             )
 
@@ -344,7 +342,7 @@ class MscclppInstructionDAG(InstructionDAG):
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
     # then merge them into a single signal/wait/flush op
     # wait(src,sbuf,si,_,_,_) wait(src,sbuf,si,_,_,_) -> wait(list[src,sbuf,si],_,_,_,_])
-    def _parallel_signal_wait(self):
+    def _compact_signal_flush_wait(self):
         optimizer = InstructionOptimizer()
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
@@ -355,15 +353,15 @@ class MscclppInstructionDAG(InstructionDAG):
                     op = queue[0]
                     fused = False
                     if op.inst == Instruction.signal:
-                        fused = optimizer.try_parallel_instruction(
+                        fused = optimizer.try_compact_instruction(
                             op, tb, queue, Instruction.signal, same_src_dst_buffer_type
                         )
                     elif op.inst == Instruction.flush:
-                        fused = optimizer.try_parallel_instruction(
+                        fused = optimizer.try_compact_instruction(
                             op, tb, queue, Instruction.flush, same_src_dst_buffer_type
                         )
                     elif op.inst == Instruction.wait:
-                        fused = optimizer.try_parallel_instruction(
+                        fused = optimizer.try_compact_instruction(
                             op, tb, queue, Instruction.wait, same_src_dst_buffer_type
                         )
                     if fused:
@@ -384,7 +382,7 @@ class MscclppInstructionDAG(InstructionDAG):
         self._optimize_rrcs_rs()
         self._optimize_get_put()
 
-        self._parallel_signal_wait()
+        self._compact_signal_flush_wait()
 
     def replicate(self, instances: int, replication_policy: ReplicationPolicy):
         # update op step

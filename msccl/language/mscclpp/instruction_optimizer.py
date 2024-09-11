@@ -54,11 +54,12 @@ class InstructionOptimizer:
             return True
         return False
 
-    def try_parallel_instruction(
+    def try_compact_instruction(
         self, op: Op, tb: Threadblock, queue: list, inst_type: Instruction, same_src_dst_func: callable
     ) -> bool:
         """
-        Try to parallelize the instructions with the same instruction type.
+        Try to campact the instructions with the same instruction type. This optimization will
+        compact multiple instructions of the same type into a single instruction.
         :param op: The current operation.
         :param seq_op: The sequential operation to merge with.
         :param tb: The task block containing the operations.
