@@ -7,10 +7,10 @@ from msccl.language.instruction_dag import (
     same_chan_type,
     same_count,
 )
-from msccl.language.types import ChunkRef, MscclppInstruction as Instruction, Op, ReplicationPolicy, Threadblock
+from msccl.language.types import ChunkRef, MscclppInstruction as Instruction, Op, Threadblock
 
 
-class Optimizer:
+class InstructionOptimizer:
     def try_merge_same_instruction(
         self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction, same_buf_func: callable
     ) -> bool:
@@ -34,9 +34,7 @@ class Optimizer:
             # Append the source chunks from next_op
             op.srcs.append(
                 (
-                    ChunkRef(
-                        next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size
-                    ),
+                    ChunkRef(next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size),
                     next_op.step,
                 )
             )
@@ -44,9 +42,7 @@ class Optimizer:
             if inst_type in [Instruction.signal, Instruction.wait, Instruction.flush]:
                 op.dsts.append(
                     (
-                        ChunkRef(
-                            next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size
-                        ),
+                        ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size),
                         next_op.step,
                     )
                 )
@@ -55,4 +51,37 @@ class Optimizer:
             tb.ops.remove(next_op)
             queue.remove(next_op)
             return True
+        return False
+
+    def try_parallel_instruction(
+        self, op: Op, tb: Threadblock, queue: list, inst_type: Instruction, same_src_dst_func: callable
+    ) -> bool:
+        """
+        Try to parallelize the instructions which do not have dependencies.
+        """
+        if len(queue) > 1:
+            next_op = queue[1]
+            if (
+                next_op.inst == inst_type
+                and same_src_dst_func(op, next_op)
+                and same_chan_type(op, next_op)
+                and not circular_dep_after_merge(op, next_op)
+            ):
+                # Append the source and destination chunks from next_op
+                op.dsts.append(
+                    (
+                        ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size),
+                        next_op.step,
+                    )
+                )
+                op.srcs.append(
+                    (
+                        ChunkRef(next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size),
+                        next_op.step,
+                    )
+                )
+                merge_op(op, next_op)
+                tb.ops.remove(next_op)
+                queue.remove(next_op)
+                return True
         return False

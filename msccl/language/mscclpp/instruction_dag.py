@@ -15,7 +15,7 @@ from msccl.language.instruction_dag import (
     same_src_dst_buffer_type,
 )
 from msccl.language.instruction_dag import InstructionDAG
-from msccl.language.mscclpp.optimizer import Optimizer
+from msccl.language.mscclpp.instruction_optimizer import InstructionOptimizer
 from msccl.language.types import (
     Channel,
     ChannelType,
@@ -254,7 +254,7 @@ class MscclppInstructionDAG(InstructionDAG):
     # reduce(_,_,_,dst,dbuf,di) reduce(_,_,_,dst,dbuf,di) -> reduce(list[src,sbuf,si], dst, dbuf, di)
     # reduce_packet(_,_,_,dst,dbuf,di) reduce_packet(_,_,_,dst,dbuf,di) -> reduce_packet(list[src,sbuf,si], dst, dbuf, di)
     def _optimize_fuse_same_instruction(self):
-        optimizer = Optimizer()
+        optimizer = InstructionOptimizer()
         # Mapping instruction to their respective condition checks and same buffer function
         instruction_handlers = {
             Instruction.read_reduce_copy: same_buf_dst,
@@ -479,9 +479,10 @@ class MscclppInstructionDAG(InstructionDAG):
                     queue = queue[1:]
 
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
-    # then merge them into a single signal/wait op
+    # then merge them into a single signal/wait/flush op
     # wait(src,sbuf,si,_,_,_) wait(src,sbuf,si,_,_,_) -> wait(list[src,sbuf,si],_,_,_,_])
     def _parallel_signal_wait(self):
+        optimizer = InstructionOptimizer()
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
                 if tbid == -1:
@@ -490,61 +491,19 @@ class MscclppInstructionDAG(InstructionDAG):
                 while len(queue) > 0:
                     op = queue[0]
                     if op.inst == Instruction.signal:
-                        fused = False
-                        if len(queue) > 1:
-                            seq_op = queue[1]
-                            if (
-                                seq_op.inst == Instruction.signal
-                                and same_src_dst_buffer_type(op, seq_op)
-                                and same_chan_type(op, seq_op)
-                                and not circular_dep_after_merge(op, seq_op)
-                            ):
-                                op.dsts.append(
-                                    (
-                                        ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                op.srcs.append(
-                                    (
-                                        ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                merge_op(op, seq_op)
-                                tb.ops.remove(seq_op)
-                                queue.remove(seq_op)
-                                fused = True
-                        if fused:
-                            continue
+                        fused = optimizer.try_parallel_instruction(
+                            op, tb, queue, Instruction.signal, same_src_dst_buffer_type
+                        )
+                    elif op.inst == Instruction.flush:
+                        fused = optimizer.try_parallel_instruction(
+                            op, tb, queue, Instruction.flush, same_src_dst_buffer_type
+                        )
                     elif op.inst == Instruction.wait:
-                        fused = False
-                        if len(queue) > 1:
-                            seq_op = queue[1]
-                            if (
-                                seq_op.inst == Instruction.wait
-                                and same_src_dst_buffer_type(op, seq_op)
-                                and same_chan_type(op, seq_op)
-                                and not circular_dep_after_merge(op, seq_op)
-                            ):
-                                op.dsts.append(
-                                    (
-                                        ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                op.srcs.append(
-                                    (
-                                        ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                merge_op(op, seq_op)
-                                tb.ops.remove(seq_op)
-                                queue.remove(seq_op)
-                                fused = True
-                        if fused:
-                            continue
+                        fused = optimizer.try_parallel_instruction(
+                            op, tb, queue, Instruction.wait, same_src_dst_buffer_type
+                        )
+                    if fused:
+                        continue
                     queue = queue[1:]
 
     def _get_tb_step(self, rank: int, tb: int):
