@@ -99,11 +99,12 @@ class InstructionOptimizer:
         :return: True if operations are merged, False otherwise.
         """
         if (
-            next_op.inst == Instruction.put or next_op.inst == Instruction.put_packet
+            next_op.inst == Instruction.put
+            or next_op.inst == Instruction.put_packet
             and same_count(op, next_op)
             and buf_dst_src_match(op, next_op)
-            and op.channel_type == ChannelType.sm
             and next_op.channel_type == ChannelType.sm
+            and (op.channel_type == ChannelType.none or op.channel_type == ChannelType.sm)
             and not circular_dep_after_merge(op, next_op)
         ):
             if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
