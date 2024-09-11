@@ -490,6 +490,7 @@ class MscclppInstructionDAG(InstructionDAG):
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
+                    fused = False
                     if op.inst == Instruction.signal:
                         fused = optimizer.try_parallel_instruction(
                             op, tb, queue, Instruction.signal, same_src_dst_buffer_type
