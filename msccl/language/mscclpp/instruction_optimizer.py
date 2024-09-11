@@ -97,7 +97,7 @@ class InstructionOptimizer:
                 return True
         return False
 
-    def try_fuse_with_put(self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction) -> bool:
+    def try_fuse_with_put(self, op: Op, next_op: Op, tb: Threadblock, queue: list) -> bool:
         """
         Attempts to fuse 'put' operations with other operations like read_reduce_copy, reduce, etc.
         :param op: The current operation.
@@ -120,15 +120,14 @@ class InstructionOptimizer:
             if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                 return False
             # Adjust instruction type and channel if needed
-            if op.inst == inst_type:
-                if inst_type == Instruction.read_reduce_copy:
-                    op.inst = Instruction.read_reduce_copy_send
-                elif inst_type == Instruction.reduce:
-                    op.inst = Instruction.reduce_send
-                    op.channel_type = ChannelType.sm
-                elif inst_type == Instruction.reduce_packet:
-                    op.inst = Instruction.reduce_send_packet
-                    op.channel_type = ChannelType.sm
+            if op.inst_type == Instruction.read_reduce_copy:
+                op.inst = Instruction.read_reduce_copy_send
+            elif op.inst_type == Instruction.reduce:
+                op.inst = Instruction.reduce_send
+                op.channel_type = ChannelType.sm
+            elif op.inst_type == Instruction.reduce_packet:
+                op.inst = Instruction.reduce_send_packet
+                op.channel_type = ChannelType.sm
             # Append the destination chunk from next_op
             op.dsts.append(
                 (

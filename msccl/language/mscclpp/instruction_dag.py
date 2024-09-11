@@ -329,17 +329,17 @@ class MscclppInstructionDAG(InstructionDAG):
                     fused = False
                     if op.inst == Instruction.read_reduce_copy or op.inst == Instruction.read_reduce_copy_send:
                         for next_op in op.next:
-                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue, op.inst)
+                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue)
                             if fused:
                                 break
                     elif op.inst == Instruction.reduce or op.inst == Instruction.reduce_send:
                         for next_op in op.next:
-                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue, op.inst)
+                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue)
                             if fused:
                                 break
                     elif op.inst == Instruction.reduce_packet or op.inst == Instruction.reduce_send_packet:
                         for next_op in op.next:
-                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue, op.inst)
+                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue)
                             if fused:
                                 break
                     if fused:
