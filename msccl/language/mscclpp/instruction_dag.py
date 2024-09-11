@@ -294,7 +294,7 @@ class MscclppInstructionDAG(InstructionDAG):
                     fused = False
                     if op.inst == Instruction.read_reduce_copy or op.inst == Instruction.read_reduce_copy_send:
                         for next_op in op.next:
-                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, Instruction.read_reduce_copy_send)
+                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, op.inst)
                             if fused:
                                 break
                         if fused:
