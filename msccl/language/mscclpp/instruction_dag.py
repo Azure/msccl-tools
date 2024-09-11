@@ -307,8 +307,8 @@ class MscclppInstructionDAG(InstructionDAG):
                             fused = optimizer.try_merge_with_put(op, next_op, tb, queue, op.inst)
                             if fused:
                                 break
-                        if fused:
-                            continue
+                    if fused:
+                        continue
                     queue = queue[1:]
 
     # get(src, sbuf. si, dst, dbuf, di) get(src, sbuf, si, dst, dbuf, di) -> get(list[src,sbuf,si], list[dst,dbuf,di])
