@@ -10,6 +10,7 @@ _local_src_insts_mscclpp: set = {
     Instruction.put,
     Instruction.put_packet,
     Instruction.signal,
+    Instruction.flush,
     Instruction.copy,
     Instruction.copy_packet,
     Instruction.transform_to_packet,

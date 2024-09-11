@@ -252,6 +252,17 @@ class Ref(ChunkRef):
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.instr_dag.add_signal(sender, self, dst_chunkref, sendtb, chan_type)
 
+    # only proxy channel need to use this function
+    def flush(self, dst, buffer=None, index=-1, sendtb=-1):
+        sender = self.rank
+        receiver = dst
+        assert sender != receiver, "Cannot flush to the same rank"
+        buffer, index = self._get_buffer_index(dst, buffer, index)
+
+        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+        dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+        self.prog.instr_dag.add_flush(sender, self, dst_chunkref, sendtb)
+
     def wait(self, src, buffer=None, index=-1, recvtb=-1, chan_type=ChannelType.sm):
         sender = src
         receiver = self.rank
