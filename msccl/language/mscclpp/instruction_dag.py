@@ -297,18 +297,68 @@ class MscclppInstructionDAG(InstructionDAG):
                             fused = optimizer.try_merge_with_put(op, next_op, tb, queue, Instruction.read_reduce_copy_send)
                             if fused:
                                 break
-                    if op.inst == Instruction.reduce or op.inst == Instruction.reduce_send:
+                        if fused:
+                            continue
+                    elif op.inst == Instruction.reduce or op.inst == Instruction.reduce_send:
+                        fused = False
                         for next_op in op.next:
-                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, Instruction.reduce_send)
-                            if fused:
+                            if (
+                                next_op.inst == Instruction.put
+                                and same_count(op, next_op)
+                                and buf_dst_src_match(op, next_op)
+                                and next_op.channel_type == ChannelType.sm
+                                and not circular_dep_after_merge(op, next_op)
+                            ):
+                                if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
+                                    continue
+                                if op.inst == Instruction.reduce:
+                                    op.inst = Instruction.reduce_send
+                                    op.channel_type = ChannelType.sm
+                                op.dsts.append(
+                                    (
+                                        ChunkRef(
+                                            next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size
+                                        ),
+                                        next_op.step,
+                                    )
+                                )
+                                merge_op(op, next_op)
+                                tb.ops.remove(next_op)
+                                queue.remove(next_op)
+                                fused = True
                                 break
-                    if op.inst == Instruction.reduce_packet or op.inst == Instruction.reduce_send_packet:
+                        if fused:
+                            continue
+                    elif op.inst == Instruction.reduce_packet or op.inst == Instruction.reduce_send_packet:
+                        fused = False
                         for next_op in op.next:
-                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, Instruction.reduce_send_packet)
-                            if fused:
+                            if (
+                                next_op.inst == Instruction.put_packet
+                                and same_count(op, next_op)
+                                and buf_dst_src_match(op, next_op)
+                                and next_op.channel_type == ChannelType.sm
+                                and not circular_dep_after_merge(op, next_op)
+                            ):
+                                if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
+                                    continue
+                                if op.inst == Instruction.reduce_packet:
+                                    op.inst = Instruction.reduce_send_packet
+                                    op.channel_type = ChannelType.sm
+                                op.dsts.append(
+                                    (
+                                        ChunkRef(
+                                            next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size
+                                        ),
+                                        next_op.step,
+                                    )
+                                )
+                                merge_op(op, next_op)
+                                tb.ops.remove(next_op)
+                                queue.remove(next_op)
+                                fused = True
                                 break
-                    if fused:
-                        continue
+                        if fused:
+                            continue
                     queue = queue[1:]
 
     # get(src, sbuf. si, dst, dbuf, di) get(src, sbuf, si, dst, dbuf, di) -> get(list[src,sbuf,si], list[dst,dbuf,di])
