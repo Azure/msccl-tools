@@ -37,7 +37,9 @@ class MscclppInstructionDAG(InstructionDAG):
         if trans_from_packet:
             op = Op(Instruction.copy_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         elif trans_to_packet:
-            op = Op(Instruction.transform_to_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
+            op = Op(
+                Instruction.transform_to_packet, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step
+            )
         else:
             op = Op(Instruction.copy, rank, send_ref, recv_ref, next=set(), prev=set(), tb=tb, step=tb_step)
         dstbuffer = recv_ref.buffer
@@ -220,7 +222,7 @@ class MscclppInstructionDAG(InstructionDAG):
                         chans.add(chan)
                 tb.channels = list(chans)
 
-    def _optimize_redundant_signal_wait(self):
+    def _remove_redundant_signal_wait(self):
         # For packet ops, we can remove signal/wait
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
@@ -245,6 +247,33 @@ class MscclppInstructionDAG(InstructionDAG):
                                 break
                         if fused:
                             continue
+                    queue = queue[1:]
+
+    # put(src, sbuf, si, dst, dbuf, di) signal(src, sbuf, si, dst, dbuf, di)
+    # -> putWithSignal(src, sbuf, si, dst, dbuf, di)
+    # put(src, sbuf, si, dst, dbuf, di) signal(src, sbuf, si, dst, dbuf, di) flush(src, sbuf, si, dst, dbuf, di)
+    # -> putWithSignalAndFlush(src, sbuf, si, dst, dbuf, di)
+    def _fuse_instruction_via_proxy_channel(self):
+        optimizer = InstructionOptimizer()
+        next_inst = {
+            Instruction.put: Instruction.signal,
+            Instruction.put_with_signal: Instruction.flush,
+        }
+        for rank, rank_tbs in enumerate(self.tbs):
+            for tbid, tb in rank_tbs.items():
+                queue = list(tb.ops)
+                while len(queue) > 0:
+                    op = queue[0]
+                    fused = False
+                    if op.inst in next_inst:
+                        for next_op in op.next:
+                            fused = optimizer.try_fuse_instructions_via_proxy_channel(
+                                op, next_op, tb, queue, next_inst[op.inst]
+                            )
+                            if fused:
+                                break
+                    if fused:
+                        continue
                     queue = queue[1:]
 
     # rrc(_,_,_,dst,dbuf,di) rrc(_,_,_,dst,dbuf,di) -> rrc(list[src,sbuf,si], dst, dbuf, di)
@@ -284,6 +313,14 @@ class MscclppInstructionDAG(InstructionDAG):
     # reduce(_,_,_,dst,dbuf,di) put(dst,dbuf,di,_,_,_) -> rs(_,_,_,_,_,_)
     def _optimize_rrcs_rs(self):
         optimizer = InstructionOptimizer()
+        inst_types = [
+            Instruction.read_reduce_copy,
+            Instruction.reduce,
+            Instruction.reduce_packet,
+            Instruction.read_reduce_copy_send,
+            Instruction.reduce_send,
+            Instruction.reduce_send_packet,
+        ]
         for _, rank_tbs in enumerate(self.tbs):
             for _, tb in rank_tbs.items():
                 queue = list(tb.ops)
@@ -377,7 +414,7 @@ class MscclppInstructionDAG(InstructionDAG):
             return 0
 
     def optimize(self):
-        self._optimize_redundant_signal_wait()
+        self._remove_redundant_signal_wait()
         self._optimize_fuse_same_instruction()
         self._optimize_rrcs_rs()
         self._optimize_get_put()

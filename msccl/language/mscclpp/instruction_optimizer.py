@@ -7,6 +7,8 @@ from msccl.language.instruction_dag import (
     merge_op,
     same_chan_type,
     same_count,
+    same_buf_dst,
+    same_buf_src,
 )
 from msccl.language.types import ChunkRef, ChannelType, MscclppInstruction as Instruction, Op, Threadblock
 
@@ -95,7 +97,7 @@ class InstructionOptimizer:
                 return True
         return False
 
-    def try_fuse_with_put(self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction):
+    def try_fuse_with_put(self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction) -> bool:
         """
         Attempts to fuse 'put' operations with other operations like read_reduce_copy, reduce, etc.
         :param op: The current operation.
@@ -130,12 +132,42 @@ class InstructionOptimizer:
             # Append the destination chunk from next_op
             op.dsts.append(
                 (
-                    ChunkRef(
-                        next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size
-                    ),
+                    ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size),
                     next_op.step,
                 )
             )
+            # Merge operations
+            merge_op(op, next_op)
+            tb.ops.remove(next_op)
+            queue.remove(next_op)
+            return True
+        return False
+
+    def try_fuse_instructions_via_proxy_channel(
+        self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction
+    ) -> bool:
+        """
+        Attempts to fuse operations via proxy channel.
+        :param op: The current operation.
+        :param next_op: The next operation to potentially merge with.
+        :param tb: The thread block containing the operations.
+        :param queue: The queue of operations.
+        :param inst_type: The type of the instruction being processed.
+        :return: True if operations are merged, False otherwise.
+        """
+        if (
+            next_op.inst == inst_type
+            and same_count(op, next_op)
+            and same_buf_dst(op, next_op)
+            and same_buf_src(op, next_op)
+            and same_chan_type(op, next_op)
+            and op.channel_type == ChannelType.proxy
+            and not circular_dep_after_merge(op, next_op)
+        ):
+            if op.inst_type == Instruction.put and next_op.inst == Instruction.signal:
+                op.inst = Instruction.put_with_signal
+            elif inst_type == Instruction.put_with_signal and next_op.inst == Instruction.flush:
+                op.inst = Instruction.put_with_signal_and_flush
             # Merge operations
             merge_op(op, next_op)
             tb.ops.remove(next_op)
