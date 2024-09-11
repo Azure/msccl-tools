@@ -120,12 +120,12 @@ class InstructionOptimizer:
             if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                 return False
             # Adjust instruction type and channel if needed
-            if op.inst_type == Instruction.read_reduce_copy:
+            if op.inst == Instruction.read_reduce_copy:
                 op.inst = Instruction.read_reduce_copy_send
-            elif op.inst_type == Instruction.reduce:
+            elif op.inst == Instruction.reduce:
                 op.inst = Instruction.reduce_send
                 op.channel_type = ChannelType.sm
-            elif op.inst_type == Instruction.reduce_packet:
+            elif op.inst == Instruction.reduce_packet:
                 op.inst = Instruction.reduce_send_packet
                 op.channel_type = ChannelType.sm
             # Append the destination chunk from next_op
