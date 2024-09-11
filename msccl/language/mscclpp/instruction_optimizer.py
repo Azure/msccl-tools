@@ -58,38 +58,45 @@ class InstructionOptimizer:
         self, op: Op, tb: Threadblock, queue: list, inst_type: Instruction, same_src_dst_func: callable
     ) -> bool:
         """
-        Try to parallelize the instructions which do not have dependencies.
+        Try to parallelize the instructions with the same instruction type.
+        :param op: The current operation.
+        :param seq_op: The sequential operation to merge with.
+        :param tb: The task block containing the operations.
+        :param queue: The queue of operations.
+        :param inst_type: The type of the instruction being processed (get, put, put_packet).
+        :return: True if operations are merged, False otherwise.
         """
         if len(queue) > 1:
-            next_op = queue[1]
+            seq_op = queue[1]
             if (
-                next_op.inst == inst_type
-                and same_src_dst_func(op, next_op)
-                and same_chan_type(op, next_op)
-                and not circular_dep_after_merge(op, next_op)
+                seq_op.inst == inst_type
+                and same_src_dst_func(op, seq_op)
+                and same_chan_type(op, seq_op)
+                and same_count(op, seq_op)
+                and not circular_dep_after_merge(op, seq_op)
             ):
-                # Append the source and destination chunks from next_op
+                # Append the source and destination chunks from seq_op
                 op.dsts.append(
                     (
-                        ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size),
-                        next_op.step,
+                        ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size),
+                        seq_op.step,
                     )
                 )
                 op.srcs.append(
                     (
-                        ChunkRef(next_op.src.rank, next_op.src.buffer, next_op.src.index, next_op.src.size),
-                        next_op.step,
+                        ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size),
+                        seq_op.step,
                     )
                 )
-                merge_op(op, next_op)
-                tb.ops.remove(next_op)
-                queue.remove(next_op)
+                merge_op(op, seq_op)
+                tb.ops.remove(seq_op)
+                queue.remove(seq_op)
                 return True
         return False
 
-    def try_merge_with_put(self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction):
+    def try_fuse_with_put(self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction):
         """
-        Attempts to merge 'put' operations with other operations like read_reduce_copy, reduce, etc.
+        Attempts to fuse 'put' operations with other operations like read_reduce_copy, reduce, etc.
         :param op: The current operation.
         :param next_op: The next operation to potentially merge with.
         :param tb: The thread block containing the operations.

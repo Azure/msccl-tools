@@ -294,17 +294,17 @@ class MscclppInstructionDAG(InstructionDAG):
                     fused = False
                     if op.inst == Instruction.read_reduce_copy or op.inst == Instruction.read_reduce_copy_send:
                         for next_op in op.next:
-                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, op.inst)
+                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue, op.inst)
                             if fused:
                                 break
                     elif op.inst == Instruction.reduce or op.inst == Instruction.reduce_send:
                         for next_op in op.next:
-                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, op.inst)
+                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue, op.inst)
                             if fused:
                                 break
                     elif op.inst == Instruction.reduce_packet or op.inst == Instruction.reduce_send_packet:
                         for next_op in op.next:
-                            fused = optimizer.try_merge_with_put(op, next_op, tb, queue, op.inst)
+                            fused = optimizer.try_fuse_with_put(op, next_op, tb, queue, op.inst)
                             if fused:
                                 break
                     if fused:
@@ -314,98 +314,31 @@ class MscclppInstructionDAG(InstructionDAG):
     # get(src, sbuf. si, dst, dbuf, di) get(src, sbuf, si, dst, dbuf, di) -> get(list[src,sbuf,si], list[dst,dbuf,di])
     # put(src, sbuf, si, dst, dbuf, di) put(src, sbuf, si, dst, dbuf, di) -> put(list[src,sbuf,si], list[dst,dbuf,di])
     def _optimize_get_put(self):
-        for rank, rank_tbs in enumerate(self.tbs):
-            for tbid, tb in rank_tbs.items():
+        optimizer = InstructionOptimizer()
+        for _, rank_tbs in enumerate(self.tbs):
+            for _, tb in rank_tbs.items():
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
+                    fused = False
                     if op.inst == Instruction.get:
-                        fused = False
                         if len(queue) > 1:
-                            seq_op = queue[1]
-                            if (
-                                seq_op.inst == Instruction.get
-                                and same_src_dst_buffer_type(op, seq_op)
-                                and same_chan_type(op, seq_op)
-                                and same_count(op, seq_op)
-                                and not circular_dep_after_merge(op, seq_op)
-                            ):
-                                op.dsts.append(
-                                    (
-                                        ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                op.srcs.append(
-                                    (
-                                        ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                merge_op(op, seq_op)
-                                tb.ops.remove(seq_op)
-                                queue.remove(seq_op)
-                                fused = True
-                        if fused:
-                            continue
+                            fused = optimizer.try_parallel_instruction(
+                                op, tb, queue, Instruction.get, same_src_dst_buffer_type
+                            )
                     elif op.inst == Instruction.put:
-                        fused = False
                         if len(queue) > 1:
-                            seq_op = queue[1]
-                            if (
-                                seq_op.inst == Instruction.put
-                                and same_src_dst_buffer_type(op, seq_op)
-                                and same_chan_type(op, seq_op)
-                                and same_count(op, seq_op)
-                                and not circular_dep_after_merge(op, seq_op)
-                            ):
-                                op.dsts.append(
-                                    (
-                                        ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                op.srcs.append(
-                                    (
-                                        ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                merge_op(op, seq_op)
-                                tb.ops.remove(seq_op)
-                                queue.remove(seq_op)
-                                fused = True
-                        if fused:
-                            continue
+                            fused = optimizer.try_parallel_instruction(
+                                op, tb, queue, Instruction.put, same_src_dst_buffer_type
+                            )
                     elif op.inst == Instruction.put_packet:
-                        fused = False
                         if len(queue) > 1:
-                            seq_op = queue[1]
-                            if (
-                                seq_op.inst == Instruction.put_packet
-                                and same_src_dst_buffer_type(op, seq_op)
-                                and same_chan_type(op, seq_op)
-                                and same_count(op, seq_op)
-                                and not circular_dep_after_merge(op, seq_op)
-                            ):
-                                op.dsts.append(
-                                    (
-                                        ChunkRef(seq_op.dst.rank, seq_op.dst.buffer, seq_op.dst.index, seq_op.dst.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                op.srcs.append(
-                                    (
-                                        ChunkRef(seq_op.src.rank, seq_op.src.buffer, seq_op.src.index, seq_op.src.size),
-                                        seq_op.step,
-                                    )
-                                )
-                                merge_op(op, seq_op)
-                                tb.ops.remove(seq_op)
-                                queue.remove(seq_op)
-                                fused = True
-                        if fused:
-                            continue
+                            fused = optimizer.try_parallel_instruction(
+                                op, tb, queue, Instruction.put_packet, same_src_dst_buffer_type
+                            )
+
+                    if fused:
+                        continue
                     queue = queue[1:]
 
     # For signal/wait ops, if they are independent of other operations and no other operations in between,
