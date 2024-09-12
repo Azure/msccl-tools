@@ -15,7 +15,7 @@ from msccl.language.types import ChunkRef, ChannelType, MscclppInstruction as In
 
 class InstructionOptimizer:
 
-    def try_merge_same_instruction(
+    def try_merge_same_instructions(
         self,
         op: Op,
         next_op: Op,

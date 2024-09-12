@@ -302,7 +302,7 @@ class MscclppInstructionDAG(InstructionDAG):
                     if inst_type in instruction_handlers:
                         for next_op in op.next:
                             same_buf_func = instruction_handlers[inst_type]
-                            if optimizer.try_merge_same_instruction(op, next_op, tb, queue, inst_type, same_buf_func):
+                            if optimizer.try_merge_same_instructions(op, next_op, tb, queue, inst_type, same_buf_func):
                                 fused = True
                                 break
                     if fused:
