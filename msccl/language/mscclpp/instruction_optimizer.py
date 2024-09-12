@@ -5,6 +5,7 @@ from msccl.language.instruction_dag import (
     buf_dst_src_match,
     circular_dep_after_merge,
     merge_op,
+    remove_op,
     same_chan_type,
     same_count,
     same_buf_dst,
@@ -178,5 +179,11 @@ class InstructionOptimizer:
             merge_op(op, next_op)
             tb.ops.remove(next_op)
             queue.remove(next_op)
+            return True
+        return False
+
+    def try_remove_op(self, pending_remove_op: Op, condition: bool) -> bool:
+        if condition:
+            remove_op(pending_remove_op)
             return True
         return False

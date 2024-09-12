@@ -4,14 +4,8 @@
 
 from msccl.language.buffer import Buffer
 from msccl.language.instruction_dag import (
-    buf_dst_src_match,
-    merge_op,
-    remove_op,
-    circular_dep_after_merge,
     same_buf_dst,
     same_buf_src,
-    same_chan_type,
-    same_count,
     same_src_dst_buffer_type,
 )
 from msccl.language.instruction_dag import InstructionDAG
@@ -223,30 +217,26 @@ class MscclppInstructionDAG(InstructionDAG):
                 tb.channels = list(chans)
 
     def _remove_redundant_signal_wait(self):
+        optimizer = InstructionOptimizer()
         # For packet ops, we can remove signal/wait
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
+                    fused = False
                     if op.inst == Instruction.put_packet:
-                        fused = False
                         for next_op in op.next:
-                            if next_op.inst == Instruction.signal:
-                                remove_op(next_op)
-                                fused = True
+                            fused = optimizer.try_remove_op(next_op, tb, queue, next_op.inst == Instruction.signal)
+                            if fused:
                                 break
-                        if fused:
-                            continue
                     elif op.inst == Instruction.reduce_packet or op.inst == Instruction.copy_packet:
-                        fused = False
                         for prev_op in op.prev:
-                            if prev_op.inst == Instruction.wait:
-                                remove_op(prev_op)
-                                fused = True
+                            fused = optimizer.try_remove_op(prev_op, tb, queue, next_op.inst == Instruction.wait)
+                            if fused:
                                 break
-                        if fused:
-                            continue
+                    if fused:
+                        continue
                     queue = queue[1:]
 
     # put(src, sbuf, si, dst, dbuf, di) signal(src, sbuf, si, dst, dbuf, di)
