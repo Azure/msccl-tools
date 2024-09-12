@@ -236,6 +236,35 @@ def test_instruction_fusion_mscclpp():
     assert lowered_prgm.gpus[2].threadblocks[0].ops[2].inst == MscclppInstruction.signal
 
 
+def test_instruction_fusion_put_signal_flush_mscclpp():
+    topology = fully_connected(2)
+    collective = SendRecv(2, 1, False)
+    prgm = MSCCLPPProgram("allreduce", topology, collective, 1)
+    with prgm:
+        c0 = chunk(0, Buffer.input, 0)
+        c0.put(1, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy)
+        c0.signal(1, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy)
+        c0.flush(1, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy)
+        c1 = chunk(1, Buffer.input, 0)
+        c1.put(0, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy)
+        c1.signal(0, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy)
+        c1.flush(0, "scratch", 1, sendtb=0, chan_type=ChannelType.proxy)
+        c01 = chunk(0, "scratch", 1)
+        c01.wait(1, Buffer.input, 0, recvtb=0, chan_type=ChannelType.proxy)
+        c01.copy(0, Buffer.output, 0, sendtb=0)
+        c10 = chunk(1, "scratch", 1)
+        c10.wait(0, Buffer.input, 0, recvtb=0, chan_type=ChannelType.proxy)
+        c10.copy(1, Buffer.output, 0, sendtb=0)
+        assert Check()
+    lowered_prgm = prgm.lower()
+    assert lowered_prgm.gpus[0].threadblocks[0].ops[0].inst == MscclppInstruction.put_with_signal_and_flush
+    assert lowered_prgm.gpus[0].threadblocks[0].ops[1].inst == MscclppInstruction.wait
+    assert lowered_prgm.gpus[0].threadblocks[0].ops[2].inst == MscclppInstruction.copy
+    assert lowered_prgm.gpus[1].threadblocks[0].ops[0].inst == MscclppInstruction.put_with_signal_and_flush
+    assert lowered_prgm.gpus[1].threadblocks[0].ops[1].inst == MscclppInstruction.wait
+    assert lowered_prgm.gpus[1].threadblocks[0].ops[2].inst == MscclppInstruction.copy
+
+
 def test_instruction_fusion_multi_deps_mscclpp():
     topology = fully_connected(3)
     collective = AllReduce(3, 1, True)
