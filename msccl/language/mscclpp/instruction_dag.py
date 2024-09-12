@@ -232,7 +232,7 @@ class MscclppInstructionDAG(InstructionDAG):
                                 break
                     elif op.inst == Instruction.reduce_packet or op.inst == Instruction.copy_packet:
                         for prev_op in op.prev:
-                            fused = optimizer.try_remove_op(prev_op, next_op.inst == Instruction.wait)
+                            fused = optimizer.try_remove_op(prev_op, prev_op.inst == Instruction.wait)
                             if fused:
                                 break
                     if fused:
