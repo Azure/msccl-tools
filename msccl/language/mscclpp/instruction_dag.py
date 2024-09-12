@@ -348,7 +348,7 @@ class MscclppInstructionDAG(InstructionDAG):
                     fused = False
                     if op.inst in campactable_inst:
                         if len(queue) > 1:
-                            fused = optimizer.try_compact_instruction(op, tb, queue, op.inst, same_src_dst_buffer_type)
+                            fused = optimizer.try_compact_instructions(op, tb, queue, op.inst, same_src_dst_buffer_type)
 
                     if fused:
                         continue
@@ -367,18 +367,8 @@ class MscclppInstructionDAG(InstructionDAG):
                 while len(queue) > 0:
                     op = queue[0]
                     fused = False
-                    if op.inst == Instruction.signal:
-                        fused = optimizer.try_compact_instruction(
-                            op, tb, queue, Instruction.signal, same_src_dst_buffer_type
-                        )
-                    elif op.inst == Instruction.flush:
-                        fused = optimizer.try_compact_instruction(
-                            op, tb, queue, Instruction.flush, same_src_dst_buffer_type
-                        )
-                    elif op.inst == Instruction.wait:
-                        fused = optimizer.try_compact_instruction(
-                            op, tb, queue, Instruction.wait, same_src_dst_buffer_type
-                        )
+                    if op.inst == Instruction.signal or op.inst == Instruction.wait or op.inst == Instruction.flush:
+                        fused = optimizer.try_compact_instructions(op, tb, queue, op.inst, same_src_dst_buffer_type)
                     if fused:
                         continue
                     queue = queue[1:]

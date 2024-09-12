@@ -64,7 +64,7 @@ class InstructionOptimizer:
             return True
         return False
 
-    def try_compact_instruction(
+    def try_compact_instructions(
         self, op: Op, tb: Threadblock, queue: list, inst_type: Instruction, same_src_dst_func: callable
     ) -> bool:
         """
