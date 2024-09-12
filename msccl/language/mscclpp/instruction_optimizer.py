@@ -142,11 +142,11 @@ class InstructionOptimizer:
             return True
         return False
 
-    def try_fuse_instructions_via_proxy_channel(
+    def try_fuse_instructions_using_proxy_channel(
         self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction
     ) -> bool:
         """
-        Attempts to fuse operations via proxy channel.
+        Attempts to fuse operations which using proxy channel.
         :param op: The current operation.
         :param next_op: The next operation to potentially merge with.
         :param tb: The thread block containing the operations.
