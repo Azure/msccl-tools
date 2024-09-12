@@ -281,7 +281,7 @@ class MscclppInstructionDAG(InstructionDAG):
     # wait(src,sbuf,si,_,_,_) wait(src,sbuf,si,_,_,_) -> wait(list[src,sbuf,si],_,_,_,_])
     # reduce(_,_,_,dst,dbuf,di) reduce(_,_,_,dst,dbuf,di) -> reduce(list[src,sbuf,si], dst, dbuf, di)
     # reduce_packet(_,_,_,dst,dbuf,di) reduce_packet(_,_,_,dst,dbuf,di) -> reduce_packet(list[src,sbuf,si], dst, dbuf, di)
-    def _optimize_fuse_same_instruction(self):
+    def _fuse_same_instruction(self):
         optimizer = InstructionOptimizer()
         # Mapping instruction to their respective condition checks and same buffer function
         instruction_handlers = {
@@ -404,8 +404,9 @@ class MscclppInstructionDAG(InstructionDAG):
             return 0
 
     def optimize(self):
+        self._fuse_instruction_via_proxy_channel()
         self._remove_redundant_signal_wait()
-        self._optimize_fuse_same_instruction()
+        self._fuse_same_instruction()
         self._optimize_rrcs_rs()
         self._optimize_get_put()
 
