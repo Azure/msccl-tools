@@ -14,8 +14,15 @@ from msccl.language.types import ChunkRef, ChannelType, MscclppInstruction as In
 
 
 class InstructionOptimizer:
+
     def try_merge_same_instruction(
-        self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction, same_buf_func: callable
+        self,
+        op: Op,
+        next_op: Op,
+        tb: Threadblock,
+        queue: list,
+        expected_next_inst: Instruction,
+        same_buf_func: callable,
     ) -> bool:
         """
         Attempts to merge two instruction if conditions are met.
@@ -23,12 +30,12 @@ class InstructionOptimizer:
         :param next_op: The next operation to potentially merge with.
         :param tb: The thread block containing the operations.
         :param queue: The queue of operations.
-        :param inst_type: The type of the instruction being processed.
+        :param expected_next_inst: The instruction type expected for the next operation.
         :param same_buf_func: The function to check if the buffer is the same (same_buf_dst or same_buf_src).
         :return: True if operations are merged, False otherwise.
         """
         if (
-            next_op.inst == inst_type
+            next_op.inst == expected_next_inst
             and same_buf_func(op, next_op)
             and same_count(op, next_op)
             and same_chan_type(op, next_op)
@@ -42,7 +49,7 @@ class InstructionOptimizer:
                 )
             )
             # For 'signal' and 'wait' instructions, append destination chunks too
-            if inst_type in [Instruction.signal, Instruction.wait, Instruction.flush]:
+            if expected_next_inst in [Instruction.signal, Instruction.wait, Instruction.flush]:
                 op.dsts.append(
                     (
                         ChunkRef(next_op.dst.rank, next_op.dst.buffer, next_op.dst.index, next_op.dst.size),
@@ -143,7 +150,7 @@ class InstructionOptimizer:
         return False
 
     def try_fuse_instructions_using_proxy_channel(
-        self, op: Op, next_op: Op, tb: Threadblock, queue: list, inst_type: Instruction
+        self, op: Op, next_op: Op, tb: Threadblock, queue: list, expected_next_inst: Instruction
     ) -> bool:
         """
         Attempts to fuse operations which using proxy channel.
@@ -151,11 +158,11 @@ class InstructionOptimizer:
         :param next_op: The next operation to potentially merge with.
         :param tb: The thread block containing the operations.
         :param queue: The queue of operations.
-        :param inst_type: The type of the instruction being processed.
+        :param expected_next_inst: The instruction type expected for the next operation.
         :return: True if operations are merged, False otherwise.
         """
         if (
-            next_op.inst == inst_type
+            next_op.inst == expected_next_inst
             and same_count(op, next_op)
             and same_buf_dst(op, next_op)
             and same_buf_src(op, next_op)

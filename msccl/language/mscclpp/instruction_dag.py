@@ -255,7 +255,7 @@ class MscclppInstructionDAG(InstructionDAG):
     # -> putWithSignalAndFlush(src, sbuf, si, dst, dbuf, di)
     def _fuse_instructions_using_proxy_channel(self):
         optimizer = InstructionOptimizer()
-        next_inst = {
+        inst_followup_map = {
             Instruction.put: Instruction.signal,
             Instruction.put_with_signal: Instruction.flush,
         }
@@ -265,10 +265,10 @@ class MscclppInstructionDAG(InstructionDAG):
                 while len(queue) > 0:
                     op = queue[0]
                     fused = False
-                    if op.inst in next_inst:
+                    if op.inst in inst_followup_map:
                         for next_op in op.next:
                             fused = optimizer.try_fuse_instructions_using_proxy_channel(
-                                op, next_op, tb, queue, next_inst[op.inst]
+                                op, next_op, tb, queue, inst_followup_map[op.inst]
                             )
                             if fused:
                                 break
