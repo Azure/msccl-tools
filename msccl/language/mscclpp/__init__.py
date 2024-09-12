@@ -253,7 +253,8 @@ class Ref(ChunkRef):
         self.prog.instr_dag.add_signal(sender, self, dst_chunkref, sendtb, chan_type)
 
     # only proxy channel need to use this function
-    def flush(self, dst, buffer=None, index=-1, sendtb=-1):
+    def flush(self, dst, buffer=None, index=-1, sendtb=-1, chan_type=ChannelType.proxy):
+        assert chan_type == ChannelType.proxy, "Only proxy channel can use flush"
         sender = self.rank
         receiver = dst
         assert sender != receiver, "Cannot flush to the same rank"

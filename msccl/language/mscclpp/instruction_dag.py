@@ -338,29 +338,27 @@ class MscclppInstructionDAG(InstructionDAG):
 
     # get(src, sbuf. si, dst, dbuf, di) get(src, sbuf, si, dst, dbuf, di) -> get(list[src,sbuf,si], list[dst,dbuf,di])
     # put(src, sbuf, si, dst, dbuf, di) put(src, sbuf, si, dst, dbuf, di) -> put(list[src,sbuf,si], list[dst,dbuf,di])
+    # putWithSignal/putWithSignalAndFlush(src, sbuf, si, dst, dbuf, di)
+    # putWithSignal/putWithSignalAndFlush(src, sbuf, si, dst, dbuf, di)
+    # -> putWithSignal/putWithSignalAndFlush(list[src,sbuf,si], list[dst,dbuf,di])
     def _optimize_get_put(self):
         optimizer = InstructionOptimizer()
+        campactable_inst = [
+            Instruction.get,
+            Instruction.put,
+            Instruction.put_packet,
+            Instruction.put_with_signal,
+            Instruction.put_with_signal_and_flush,
+        ]
         for _, rank_tbs in enumerate(self.tbs):
             for _, tb in rank_tbs.items():
                 queue = list(tb.ops)
                 while len(queue) > 0:
                     op = queue[0]
                     fused = False
-                    if op.inst == Instruction.get:
+                    if op.inst in campactable_inst:
                         if len(queue) > 1:
-                            fused = optimizer.try_compact_instruction(
-                                op, tb, queue, Instruction.get, same_src_dst_buffer_type
-                            )
-                    elif op.inst == Instruction.put:
-                        if len(queue) > 1:
-                            fused = optimizer.try_compact_instruction(
-                                op, tb, queue, Instruction.put, same_src_dst_buffer_type
-                            )
-                    elif op.inst == Instruction.put_packet:
-                        if len(queue) > 1:
-                            fused = optimizer.try_compact_instruction(
-                                op, tb, queue, Instruction.put_packet, same_src_dst_buffer_type
-                            )
+                            fused = optimizer.try_compact_instruction(op, tb, queue, op.inst, same_src_dst_buffer_type)
 
                     if fused:
                         continue

@@ -163,9 +163,9 @@ class InstructionOptimizer:
             and op.channel_type == ChannelType.proxy
             and not circular_dep_after_merge(op, next_op)
         ):
-            if op.inst_type == Instruction.put and next_op.inst == Instruction.signal:
+            if op.inst == Instruction.put and next_op.inst == Instruction.signal:
                 op.inst = Instruction.put_with_signal
-            elif inst_type == Instruction.put_with_signal and next_op.inst == Instruction.flush:
+            elif op.inst == Instruction.put_with_signal and next_op.inst == Instruction.flush:
                 op.inst = Instruction.put_with_signal_and_flush
             # Merge operations
             merge_op(op, next_op)

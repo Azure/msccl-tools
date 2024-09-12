@@ -11,6 +11,8 @@ _local_src_insts_mscclpp: set = {
     Instruction.put_packet,
     Instruction.signal,
     Instruction.flush,
+    Instruction.put_with_signal,
+    Instruction.put_with_signal_and_flush,
     Instruction.copy,
     Instruction.copy_packet,
     Instruction.transform_to_packet,
@@ -209,7 +211,7 @@ def dump_to_json(program: Program):
                 dst = None
                 if op.tb == -1:
                     continue
-                if op.inst == Instruction.signal:
+                if op.inst == Instruction.signal or op.inst == Instruction.flush:
                     # get dst channel ids
                     dst_channel_ids = get_channel_ids(
                         op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
@@ -255,7 +257,12 @@ def dump_to_json(program: Program):
                         "name": op.inst.value,
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
-                elif op.inst == Instruction.put or op.inst == Instruction.put_packet:
+                elif (
+                    op.inst == Instruction.put
+                    or op.inst == Instruction.put_packet
+                    or op.inst == Instruction.put_with_signal
+                    or op.inst == Instruction.put_with_signal_and_flush
+                ):
                     dst_channel_ids = get_channel_ids(
                         op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
                     )
