@@ -318,5 +318,6 @@ def dump_to_json(program: Program):
         "protocol": program.protocol,
         "inplace": program.inplace,
         "gpus": gpus,
+        "num_threads_per_block": program.num_threads_per_block,
     }
     return json.dumps(obj, indent=2)
