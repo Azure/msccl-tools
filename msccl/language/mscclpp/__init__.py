@@ -125,6 +125,7 @@ class MSCCLPPProgram:
     def lower(self):
         self._convert_to_exectuion_plan()
         self.instr_dag.complete_channels()
+        self.instr_dag.remove_redundant_signal_wait()
         if self.instr_fusion:
             self.instr_dag.optimize()
         self.instr_dag.lower_pt1(self.instances)

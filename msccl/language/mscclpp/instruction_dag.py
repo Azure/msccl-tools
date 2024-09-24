@@ -216,7 +216,7 @@ class MscclppInstructionDAG(InstructionDAG):
                         chans.add(chan)
                 tb.channels = list(chans)
 
-    def _remove_redundant_signal_wait(self):
+    def remove_redundant_signal_wait(self):
         optimizer = InstructionOptimizer()
         # For packet ops, we can remove signal/wait
         for rank, rank_tbs in enumerate(self.tbs):
@@ -370,7 +370,6 @@ class MscclppInstructionDAG(InstructionDAG):
 
     def optimize(self):
         self._fuse_instructions_using_proxy_channel()
-        self._remove_redundant_signal_wait()
         self._fuse_same_instructions()
         self._optimize_rrcs_rs()
         self._compact_instructions()
