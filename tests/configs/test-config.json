@@ -64,6 +64,10 @@
         "args": ["8", "4", "2"]
     },
     {
+        "filename": "reducescatter_allpairs.py",
+        "args": ["8"]
+    },
+    {
         "filename": "mscclpp/allreduce_a100_allpairs_packet_mscclpp.py",
         "args": ["8", "8"]
     },
