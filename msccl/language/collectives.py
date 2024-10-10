@@ -174,7 +174,7 @@ class AllReduce(Collective):
 class ReduceScatter(Collective):
     def __init__(self, num_ranks, chunk_factor, inplace):
         Collective.__init__(self, num_ranks, chunk_factor, inplace)
-        self.name = "reduce_scatter"
+        self.name = "reducescatter"
 
     def init_buffers(self):
         rank_buffers = []
