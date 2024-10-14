@@ -3,7 +3,7 @@ from msccl.language import *
 from msccl.topologies import *
 from msccl.language.collectives import AllReduce
 
-def allpairs_reduce_scatter(gpuIds, size, offset):
+def allpairs_reduce_scatter(gpuIds, size, offset, scratch_offset):
     ngpus = len(gpuIds)
 
     # Each rank sends the nth chunk to the nth rank into scratch space
@@ -19,7 +19,7 @@ def allpairs_reduce_scatter(gpuIds, size, offset):
     for r in range(ngpus):
         for index in range(0, size * (ngpus-1)):
                 c = chunk(gpuIds[r], Buffer.input, offset + r*size + (index % size))
-                c.reduce(chunk(gpuIds[r], 'scratch', index), sendtb=(index % size))
+                c.reduce(chunk(gpuIds[r], 'scratch', index + scratch_offset), sendtb=(index % size))
 
 
 def allpairs_all_gather(gpuIds, size, offset):
@@ -59,7 +59,7 @@ def hierarchical_allreduce(gpus, instances, protocol):
             for m in range(nrows): # collect all GPU Ids in a column
                 gpuIds.append( n * nrows + m)
             
-            allpairs_reduce_scatter(gpuIds, size, 0)
+            allpairs_reduce_scatter(gpuIds, size, 0, 0)
 
         # Reduce-Scatter across rows, assumption being GPUs in a row have slower connectivity - PCIe, IP NW
         # Each GPU exachanges (1 / rows * cols) * (cols - 1) of data with other GPUs in the same row - less data is exchanged
@@ -71,7 +71,7 @@ def hierarchical_allreduce(gpus, instances, protocol):
             for m in range(ncols):
                 gpuIds.append(n + m * nrows)
 
-            allpairs_reduce_scatter(gpuIds, size, offset * n)
+            allpairs_reduce_scatter(gpuIds, size, offset * n, offset * (gpus // 2 - 1))
 
         # AllGather: AllGather phase goes in reverse order, first gather across rows of GPU
         # After this step, Each GPU in a rows have 1/ncols of data
