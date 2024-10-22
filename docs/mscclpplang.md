@@ -13,6 +13,19 @@ MSCCLPPLang provides a high-level interface for writing communication algorithms
 
 ### Core Concepts
 
+#### MSCCLPPProgram
+A MSCCLPPProgram provides the context to write MSCCLPPLang program, which can be initialized with `with` statement in Python. Its parameters include:
+
+- `name`: Name of this program.
+- `topo`: Topology of this program, should be from `msccl.topologies`.
+- `collective`: Collective type of this program, should be from `msccl.language.collectives`.
+- `instances`: Number of parallel instances of this program.
+- `protocol`: Data transmission protocol used in this program, can be `LL` or `Simple`. Optional, default is `Simple`.
+- `instr_fusion`: Whether low-level instruction fusion is enabled. Optional, default is `True`.
+- `replication_policy`: Data replication policy, should be from `msccl.language.types.ReplicationPolicy`. Optional, default is `duplicated`.
+- `num_threads_per_block`: Thread block size. Optional, default is `1024`.
+- `use_double_scratch_buffer`: Whether requires double scratch buffer during execution. Optional, default is `False`.
+
 #### Chunk
 A chunk is a piece of data that is sent between GPUs. It is the basic unit of data in MSCCLPPLang. Chunk can be a piece of data from input buffer, output buffer or intermediate buffer.
 Example of creating a chunk:
