@@ -17,6 +17,7 @@ class Program:
     gpus: list = field(default_factory=list)
     num_chunk_groups: int = 1
     num_threads_per_block: int = 1024
+    use_double_scratch_buffer: bool = False
 
 
 @dataclass

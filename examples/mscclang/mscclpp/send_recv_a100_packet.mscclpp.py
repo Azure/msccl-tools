@@ -18,6 +18,7 @@ def send_recv(instances):
         collective,
         instances,
         protocol="LL",
+        use_double_scratch_buffer=True,
     ):
         for r in range(size):
             for nghr in range(size):

@@ -34,6 +34,7 @@ class MSCCLPPProgram:
         instr_fusion: bool = True,
         replication_policy: ReplicationPolicy = ReplicationPolicy.duplicated,
         num_threads_per_block: int = 1024,
+        use_double_scratch_buffer: bool = False,
     ):
         self.name = name
         self.topo = topo
@@ -44,6 +45,7 @@ class MSCCLPPProgram:
         self.instr_fusion = instr_fusion
         self.replication_policy = replication_policy
         self.num_threads_per_block = num_threads_per_block
+        self.use_double_scratch_buffer = use_double_scratch_buffer
         assert protocol == "Simple" or protocol == "LL", f"Given protocol: {protocol}. Must be either Simple, LL"
         self.run_opt = True  # Runs optimization passes
         # Initialize the input buffers
@@ -138,6 +140,7 @@ class MSCCLPPProgram:
             gpu_prgms,
             self.collective.num_chunk_groups * self.instances,
             self.num_threads_per_block,
+            self.use_double_scratch_buffer,
         )
 
     def generate_json(self):
