@@ -252,6 +252,7 @@ def dump_to_json(program: Program):
                 elif op.inst == Instruction.reduce or op.inst == Instruction.reduce_packet:
                     srcs = list(map(lambda x: {"buff": x.buffer.value, "off": x.index}, op.srcs))
                     dst = op.dst
+                    src = op.dst
                 elif op.inst == Instruction.nop:
                     instr = {
                         "name": op.inst.value,
