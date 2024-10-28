@@ -10,6 +10,7 @@ from msccl.language.instruction_dag import (
     same_count,
     same_buf_dst,
     same_buf_src,
+    all_prevs_visited_after_merge,
 )
 from msccl.language.types import ChunkRef, ChannelType, MscclppInstruction as Instruction, Op, Threadblock
 
@@ -41,6 +42,7 @@ class InstructionOptimizer:
             and same_count(op, next_op)
             and same_chan_type(op, next_op)
             and not circular_dep_after_merge(op, next_op)
+            and all_prevs_visited_after_merge(op, next_op)
         ):
             # Append the source chunks from next_op
             op.srcs.append(
@@ -85,6 +87,7 @@ class InstructionOptimizer:
                 and same_chan_type(op, seq_op)
                 and same_count(op, seq_op)
                 and not circular_dep_after_merge(op, seq_op)
+                and all_prevs_visited_after_merge(op, seq_op)
             ):
                 # Append the source and destination chunks from seq_op
                 op.dsts.append(
@@ -124,6 +127,7 @@ class InstructionOptimizer:
             and next_op.channel_type == ChannelType.sm
             and (op.channel_type == ChannelType.none or op.channel_type == ChannelType.sm)
             and not circular_dep_after_merge(op, next_op)
+            and all_prevs_visited_after_merge(op, next_op)
         ):
             if len(op.dsts) > 0 and op.dsts[0][0].buffer != next_op.dst.buffer:
                 return False
@@ -170,6 +174,7 @@ class InstructionOptimizer:
             and same_chan_type(op, next_op)
             and op.channel_type == ChannelType.proxy
             and not circular_dep_after_merge(op, next_op)
+            and all_prevs_visited_after_merge(op, next_op)
         ):
             if op.inst == Instruction.put and next_op.inst == Instruction.signal:
                 op.inst = Instruction.put_with_signal
