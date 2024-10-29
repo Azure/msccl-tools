@@ -72,7 +72,7 @@ class AllGather(Collective):
         if self.inplace:
             # Inplace AllGather only uses the output buffer
             for r in range(self.num_ranks):
-                output_buffer = [None] * (self.num_ranks * self.chunk_factor)
+                output_buffer = [Chunk(-1, -1, -1, -1)] * (self.num_ranks * self.chunk_factor)
                 for ch in range(self.chunk_factor):
                     output_buffer[r * self.chunk_factor + ch] = Chunk(r, ch, -1, r * self.chunk_factor + ch)
                 buffers = {
@@ -83,7 +83,7 @@ class AllGather(Collective):
         else:
             for r in range(self.num_ranks):
                 input_buffer = [None] * self.chunk_factor
-                output_buffer = [None] * (self.num_ranks * self.chunk_factor)
+                output_buffer = [Chunk(-1, -1, -1, -1)] * (self.num_ranks * self.chunk_factor)
                 for ch in range(self.chunk_factor):
                     input_buffer[ch] = Chunk(r, ch, -1, r * self.chunk_factor + ch)
                 buffers = {Buffer.input: input_buffer, Buffer.output: output_buffer}

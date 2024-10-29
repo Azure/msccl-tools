@@ -315,7 +315,7 @@ def dump_to_json(program: Program):
         gpus.append(gpu_instance)
     obj = {
         "name": program.name,
-        "colletive": program.collective,
+        "collective": program.collective,
         "protocol": program.protocol,
         "inplace": program.inplace,
         "gpus": gpus,
