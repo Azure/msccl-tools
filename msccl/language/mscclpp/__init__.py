@@ -327,6 +327,18 @@ class Ref(ChunkRef):
     def reduce_packet(self, other_chunkref, recvtb=-1):
         return self._reduce(other_chunkref, recvtb, use_packet=True)
 
+    # """
+    # Group operations. These operations are used to perform collective operations across multiple chunks.
+    # For now, all chunks must has the same buffer type and offset.
+    # """
+    # # Reads the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
+    # def group_load_reduce(self, other_chunkrefs: list, recvtb=-1, channel_type=ChannelType.none):
+    #     pass
+
+    # # Copies the chunk(s) referenced by this chunkref onto Rank dst at location (buffer, index)
+    # def group_store(self, other_chunkrefs: list, sendtb=-1, channel_type=ChannelType.none):
+    #     pass
+
     def get_origin_index(self, index=0):
         return self._get_chunk(index + self.index).origin_index
 
