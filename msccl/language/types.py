@@ -144,6 +144,7 @@ class ChannelType(Enum):
     proxy = "proxy"
     sm = "sm"
     none = "none"
+    nvls = "nvls"
 
     def __str__(self):
         return self.value
