@@ -331,6 +331,13 @@ class Ref(ChunkRef):
     # Group operations. These operations are used to perform collective operations across multiple chunks.
     # For now, all chunks must has the same buffer type and offset.
     # """
+    def _assert_same_node(self, other_chunkrefs):
+        nranks_per_node = self.prog.collective.num_ranks_per_node
+        for i in range(len(other_chunkrefs)):
+            assert (
+                self.rank % nranks_per_node == other_chunkrefs[i].rank % nranks_per_node
+            ), "Group operations only supports chunks on the same node"
+
     def _assert_same_index(self, other_chunkrefs):
         for i in range(len(other_chunkrefs)):
             assert self.index == other_chunkrefs[i].index, "Group operations only supports chunks with the same index"
@@ -353,7 +360,7 @@ class Ref(ChunkRef):
         assert (
             len(other_chunkrefs) > 0 and chan_type == ChannelType.nvls
         ), "Group load reduce only supports nvls channel"
-        self._assert_same_rank(other_chunkrefs)
+        self._assert_same_node(other_chunkrefs)
         self._assert_same_index(other_chunkrefs)
         self._assert_same_buffer(other_chunkrefs)
         self._group_load_reduce(other_chunkrefs, recvtb)
@@ -363,25 +370,24 @@ class Ref(ChunkRef):
         for dst in dsts:
             self.prog.check_buffer_exists(dst, buffer)
         assert index == -1 or self.index == index, "Group store only supports chunks with the same index"
-        buffer, index = self._get_buffer_index(dst, buffer, index)
+        assert chan_type == ChannelType.nvls, "Group store only supports nvls channel"
 
-        # # Direct put
-        # assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
-        # dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
-        # self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
-        # if use_packet:
-        #     self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type, True)
-        #     self.prog.instr_dag.add_signal(self.rank, self, dst_chunkref, -1, ChannelType.none)
-        #     self.prog.instr_dag.add_wait(dst, dst_chunkref, self, -1, ChannelType.none)
-        # else:
-        #     self.prog.instr_dag.add_put(self.rank, self, dst_chunkref, sendtb, chan_type)
-        # return dst_chunkref
-        # assert (
-        #     len(other_chunkrefs) > 0 and channel_type == ChannelType.nvls
-        # ), "Group store only supports nvls channel"
-        # self._assert_same_rank(other_chunkrefs)
-        # self._assert_same_index(other_chunkrefs)
-        # self._group_store(other_chunkrefs, sendtb)
+        other_chunkrefs = []
+        nrank_per_node = self.prog.collective.num_ranks_per_node
+        for dst in dsts:
+            # Direct linked
+            buffer, index = self._get_buffer_index(dst, buffer, index)
+            assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+            assert self.buffer == buffer, "Group store only supports chunks with the same buffer"
+            assert (
+                self.rank % nrank_per_node == dst % nrank_per_node
+            ), "Group store only supports chunks on the same node"
+
+            dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+            self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+            other_chunkrefs.append(dst_chunkref)
+        # add new op here
+        pass
 
     def get_origin_index(self, index=0):
         return self._get_chunk(index + self.index).origin_index
