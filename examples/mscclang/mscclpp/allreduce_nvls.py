@@ -18,7 +18,6 @@ def allreduce_allpairs(gpus, instances):
         collective,
         instances,
     ):
-
         # Each rank sends the nth chunk to the nth rank into scratch space
         for rank in range(size):
             index = rank
@@ -27,9 +26,9 @@ def allreduce_allpairs(gpus, instances):
             # make sure the data is ready
             for nghr in range(size):
                 if rank != nghr:
-                    c_peer = chunk(rank, Buffer.input, index)
+                    c_peer = chunk(nghr, Buffer.input, index)
                     reduce_chunks.append(c_peer)
-                    c_peer.signal(nghr, Buffer.input, index, sendtb=0)
+                    c.signal(nghr, Buffer.input, index, sendtb=0)
             for nghr in range(size):
                 if rank != nghr:
                     c.wait(nghr, Buffer.input, index, recvtb=0)

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Union
+from typing import Union, List
 
 from msccl.language.buffer import Buffer
 
@@ -158,7 +158,12 @@ class Channel:
     srcBuffer: Buffer
     dstBuffer: Buffer
     type: ChannelType
-    connected_to: int
+    connected_to: Union[int, List[int]]
+
+    def __hash__(self):
+        # Ensure connected_to is converted to a tuple if it's a list
+        connected_to_hashable = tuple(self.connected_to) if isinstance(self.connected_to, list) else self.connected_to
+        return hash((self.srcBuffer, self.dstBuffer, self.type, connected_to_hashable))
 
 
 @dataclass

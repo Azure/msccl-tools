@@ -235,28 +235,42 @@ class MscclppInstructionDAG(InstructionDAG):
     def complete_channels(self):
         send_op = [Instruction.put, Instruction.signal, Instruction.put_packet]
         recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
+        group_send_op = [Instruction.group_store]
+        group_recv_op = [Instruction.group_load_reduce]
         for rank, rank_tbs in enumerate(self.tbs):
             for tbid, tb in rank_tbs.items():
                 chans = set()
                 for op in tb.ops:
-                    if op.channel_type == ChannelType.none or op.channel_type == ChannelType.nvls:
-                        continue
-                    src_buffer = (
-                        Buffer.scratch
-                        if op.src.buffer is not Buffer.input and op.src.buffer is not Buffer.output
-                        else op.src.buffer
-                    )
-                    dst_buffer = (
-                        Buffer.scratch
-                        if op.dst.buffer is not Buffer.input and op.dst.buffer is not Buffer.output
-                        else op.dst.buffer
-                    )
-                    if op.inst in send_op:
-                        chan = Channel(src_buffer, dst_buffer, op.channel_type, op.dst.rank)
-                        chans.add(chan)
-                    elif op.inst in recv_op:
-                        chan = Channel(src_buffer, dst_buffer, op.channel_type, op.src.rank)
-                        chans.add(chan)
+                    if op.src != None:
+                        src_buffer = (
+                            Buffer.scratch
+                            if op.src.buffer is not Buffer.input and op.src.buffer is not Buffer.output
+                            else op.src.buffer
+                        )
+                    if op.dst != None:
+                        dst_buffer = (
+                            Buffer.scratch
+                            if op.dst.buffer is not Buffer.input and op.dst.buffer is not Buffer.output
+                            else op.dst.buffer
+                        )
+                    if op.channel_type == ChannelType.nvls:
+                        if op.inst in group_send_op:
+                            ranks = [dst[0].rank for dst in op.dsts]
+                            ranks.append(op.rank)
+                            chan = Channel(src_buffer, dst_buffer, op.channel_type, ranks)
+                            chans.add(chan)
+                        elif op.inst in group_recv_op:
+                            ranks = [src[0].rank for src in op.srcs]
+                            ranks.append(op.rank)
+                            chan = Channel(src_buffer, dst_buffer, op.channel_type, ranks)
+                            chans.add(chan)
+                    else:
+                        if op.inst in send_op:
+                            chan = Channel(src_buffer, dst_buffer, op.channel_type, op.dst.rank)
+                            chans.add(chan)
+                        elif op.inst in recv_op:
+                            chan = Channel(src_buffer, dst_buffer, op.channel_type, op.src.rank)
+                            chans.add(chan)
                 tb.channels = list(chans)
 
     def remove_redundant_signal_wait(self):
