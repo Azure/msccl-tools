@@ -20,6 +20,8 @@ _local_src_insts_mscclpp: set = {
     Instruction.reduce_packet,
     Instruction.reduce_send,
     Instruction.reduce_send_packet,
+    Instruction.group_load_reduce_store,
+    Instruction.group_store,
 }
 _local_dst_insts_mscclpp: set = {
     Instruction.get,
@@ -33,6 +35,8 @@ _local_dst_insts_mscclpp: set = {
     Instruction.reduce_send,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
+    Instruction.group_load_reduce_store,
+    Instruction.group_load_reduce,
 }
 
 _insts_no_need_sync_barrier: set = {
@@ -280,6 +284,9 @@ def dump_to_json(program: Program):
                     or op.inst == Instruction.copy_packet
                     or op.inst == Instruction.transform_to_packet
                 ):
+                    src = op.src
+                    dst = op.dst
+                elif op.inst == Instruction.group_load_reduce_store:
                     src = op.src
                     dst = op.dst
                 if op.inst != Instruction.nop:

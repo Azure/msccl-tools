@@ -32,7 +32,7 @@ def allreduce_allpairs(gpus, instances):
             for nghr in range(size):
                 if rank != nghr:
                     c.wait(nghr, Buffer.input, index, recvtb=0)
-            c.group_load_reduce(reduce_chunks, recvtb=0)
+            c = c.group_load_reduce(reduce_chunks, recvtb=0)
             ngbrs = [nghr for nghr in range(size) if nghr != rank]
             c.group_store(ngbrs, sendtb=0)
 

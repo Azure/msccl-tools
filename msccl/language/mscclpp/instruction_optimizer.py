@@ -187,6 +187,35 @@ class InstructionOptimizer:
             return True
         return False
 
+    def try_fuse_with_group_store(self, op: Op, next_op: Op, tb: Threadblock, queue: list) -> bool:
+        """
+        Attempts to fuse 'gruop_load_reduce' operations with 'group_store' operations.
+        :param op: The current operation.
+        :param next_op: The next operation to potentially merge with.
+        :param tb: The thread block containing the operations.
+        :param queue: The queue of operations.
+        :return: True if operations are merged, False otherwise.
+        """
+        if (
+            next_op.inst == Instruction.group_store
+            and same_count(op, next_op)
+            and buf_dst_src_match(op, next_op)
+            and same_chan_type(op, next_op)
+            and not circular_dep_after_merge(op, next_op)
+            and all_prevs_visited_after_merge(op, next_op)
+        ):
+            # Append the destination chunk from next_op
+            op.inst = Instruction.group_load_reduce_store
+            op.src = next_op.src
+            for dst in next_op.dsts:
+                op.dsts.append(dst)
+            # Merge operations
+            merge_op(op, next_op)
+            tb.ops.remove(next_op)
+            queue.remove(next_op)
+            return True
+        return False
+
     def try_remove_op(self, pending_remove_op: Op, condition: bool) -> bool:
         if condition:
             remove_op(pending_remove_op)

@@ -383,6 +383,27 @@ class MscclppInstructionDAG(InstructionDAG):
                         continue
                     queue = queue[1:]
 
+    # glre(srcs, sbuf, si, _, _, _), gstore (_, _, _, dsts, dbuf, di) -> glres(srcs, sbuf, si, dsts, dbuf, di)
+    def _optimize_group_ops(self):
+        optimizer = InstructionOptimizer()
+        inst_types = [
+            Instruction.group_load_reduce,
+        ]
+        for _, rank_tbs in enumerate(self.tbs):
+            for _, tb in rank_tbs.items():
+                queue = list(tb.ops)
+                while len(queue) > 0:
+                    op = queue[0]
+                    fused = False
+                    if op.inst in inst_types:
+                        for next_op in op.next:
+                            fused = optimizer.try_fuse_with_group_store(op, next_op, tb, queue)
+                            if fused:
+                                break
+                    if fused:
+                        continue
+                    queue = queue[1:]
+
     # merge ops which are independent of other operations and no other operations in between
     # get(src, sbuf. si, dst, dbuf, di) get(src, sbuf, si, dst, dbuf, di) -> get(list[src,sbuf,si], list[dst,dbuf,di])
     # put(src, sbuf, si, dst, dbuf, di) put(src, sbuf, si, dst, dbuf, di) -> put(list[src,sbuf,si], list[dst,dbuf,di])
@@ -429,6 +450,7 @@ class MscclppInstructionDAG(InstructionDAG):
         self._fuse_instructions_using_proxy_channel()
         self._fuse_same_instructions()
         self._optimize_rrcs_rs()
+        self._optimize_group_ops()
         self._compact_instructions()
 
     def replicate(self, instances: int, replication_policy: ReplicationPolicy):
