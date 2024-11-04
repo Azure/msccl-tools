@@ -124,6 +124,9 @@ class MscclppInstruction(Enum):
     wait = "wait"
     signal = "signal"
     flush = "flush"
+    group_store = "gstore"
+    group_load_reduce = "glre"
+    group_load_reduce_store = "glres"
 
     def __str__(self):
         return self.value

@@ -191,6 +191,47 @@ class MscclppInstructionDAG(InstructionDAG):
         self._write(rank, buffer, index, size, op, read=True)
         return op
 
+    def add_group_load_reduce(self, rank, send_refs, recv_ref, tb, ch_type):
+        tb_step = self._get_tb_step(rank, tb)
+        op = Op(
+            Instruction.group_load_reduce,
+            rank,
+            None,
+            recv_ref,
+            next=set(),
+            prev=set(),
+            tb=tb,
+            channel_type=ch_type,
+            step=tb_step,
+        )
+        for send_ref in send_refs:
+            op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
+        buffer = recv_ref.buffer
+        index = recv_ref.index
+        size = recv_ref.size
+        self._write(rank, buffer, index, size, op, read=True)
+
+    def add_group_store(self, rank, send_ref, recv_refs, tb, ch_type):
+        tb_step = self._get_tb_step(rank, tb)
+        op = Op(
+            Instruction.group_store,
+            rank,
+            send_ref,
+            None,
+            next=set(),
+            prev=set(),
+            tb=tb,
+            channel_type=ch_type,
+            step=tb_step,
+        )
+        for recv_ref in recv_refs:
+            op.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
+        buffer = send_ref.buffer
+        index = send_ref.index
+        size = send_ref.size
+        self._read(rank, buffer, index, size, op)
+        return op
+
     def complete_channels(self):
         send_op = [Instruction.put, Instruction.signal, Instruction.put_packet]
         recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
@@ -198,6 +239,8 @@ class MscclppInstructionDAG(InstructionDAG):
             for tbid, tb in rank_tbs.items():
                 chans = set()
                 for op in tb.ops:
+                    if op.channel_type == ChannelType.none or op.channel_type == ChannelType.nvls:
+                        continue
                     src_buffer = (
                         Buffer.scratch
                         if op.src.buffer is not Buffer.input and op.src.buffer is not Buffer.output
