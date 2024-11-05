@@ -196,7 +196,7 @@ class MscclppInstructionDAG(InstructionDAG):
         op = Op(
             Instruction.group_load_reduce,
             rank,
-            None,
+            recv_ref,
             recv_ref,
             next=set(),
             prev=set(),
@@ -204,6 +204,8 @@ class MscclppInstructionDAG(InstructionDAG):
             channel_type=ch_type,
             step=tb_step,
         )
+        # treat recv_ref as src for group_load_reduce
+        op.srcs.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
         for send_ref in send_refs:
             op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
         buffer = recv_ref.buffer
@@ -217,13 +219,15 @@ class MscclppInstructionDAG(InstructionDAG):
             Instruction.group_store,
             rank,
             send_ref,
-            None,
+            send_ref,
             next=set(),
             prev=set(),
             tb=tb,
             channel_type=ch_type,
             step=tb_step,
         )
+        # treat send_ref as dst for group_store
+        op.dsts.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
         for recv_ref in recv_refs:
             op.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
         buffer = send_ref.buffer
@@ -256,12 +260,10 @@ class MscclppInstructionDAG(InstructionDAG):
                     if op.channel_type == ChannelType.nvls:
                         if op.inst in group_send_op:
                             ranks = [dst[0].rank for dst in op.dsts]
-                            ranks.append(op.rank)
                             chan = Channel(src_buffer, dst_buffer, op.channel_type, ranks)
                             chans.add(chan)
                         elif op.inst in group_recv_op:
                             ranks = [src[0].rank for src in op.srcs]
-                            ranks.append(op.rank)
                             chan = Channel(src_buffer, dst_buffer, op.channel_type, ranks)
                             chans.add(chan)
                     else:

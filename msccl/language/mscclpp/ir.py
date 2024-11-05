@@ -152,15 +152,23 @@ def dump_to_json(program: Program):
 
     def get_channel_ids(chunk_list, tb_channel_dict, src_buffer, dst_buffer, chan_type):
         channel_ids = []
-        for c in chunk_list:
-            key = (src_buffer, dst_buffer, chan_type)
+        key = (src_buffer, dst_buffer, chan_type)
+        if chan_type == ChannelType.nvls:
+            ranks = []
+            for c in chunk_list:
+                ranks.append(c.rank)
             channel_ids.extend(
-                [
-                    {"id": id, "off": c.index}
-                    for id, ele in enumerate(tb_channel_dict[key]["connectedTo"])
-                    if ele == c.rank
-                ]
+                [{"id": id} for id, ele in enumerate(tb_channel_dict[key]["connectedTo"]) if set(ele) == set(ranks)]
             )
+        else:
+            for c in chunk_list:
+                channel_ids.extend(
+                    [
+                        {"id": id, "off": c.index}
+                        for id, ele in enumerate(tb_channel_dict[key]["connectedTo"])
+                        if ele == c.rank
+                    ]
+                )
         return channel_ids
 
     def remove_empty_fields(d):
@@ -183,6 +191,8 @@ def dump_to_json(program: Program):
                 "type": type.value,
                 "connectedTo": [eles[1] for eles in channels],
             }
+            if type == ChannelType.nvls:
+                obj["connectedTo"] = [sorted(list(eles)) for eles in obj["connectedTo"]]
             gpu_instance["channels"].append(obj)
         gpu_instance["channels"] = list(filter(lambda x: x["type"] != "none", gpu_instance["channels"]))
         gpu_instance["channels"] = sorted(gpu_instance["channels"], key=lambda x: (x["srcbuff"], x["dstbuff"]))
@@ -289,6 +299,12 @@ def dump_to_json(program: Program):
                 elif op.inst == Instruction.group_load_reduce_store:
                     src = op.src
                     dst = op.dst
+                    src_channel_ids = get_channel_ids(
+                        op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                    )
+                    dst_channel_ids = get_channel_ids(
+                        op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                    )
                 if op.inst != Instruction.nop:
                     instr = {
                         "name": op.inst.value,
