@@ -201,7 +201,7 @@ def dump_to_json(program: Program):
         gpu_instance["channels"] = list(filter(lambda x: x["type"] != "none", gpu_instance["channels"]))
         gpu_instance["channels"] = sorted(gpu_instance["channels"], key=lambda x: (x["srcbuff"], x["dstbuff"]))
 
-        # render GPU NVLS channels
+        # render for GPU NVLS channels
         for i, chan in enumerate(gpu_instance["channels"]):
             if chan["type"] == "nvls":
                 buff = chan["srcbuff"]

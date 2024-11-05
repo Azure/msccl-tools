@@ -132,7 +132,7 @@ class MSCCLPPProgram:
             self.instr_dag.optimize()
         self.instr_dag.lower_pt1(self.instances)
         gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.replication_policy)
-        return Program(
+        program = Program(
             self.name,
             self.collective.name,
             self.collective.inplace,
@@ -142,6 +142,11 @@ class MSCCLPPProgram:
             self.num_threads_per_block,
             self.use_double_scratch_buffer,
         )
+        for gpu in program.gpus:
+            gpu.input_chunks = len(self.buffers[gpu.rank][Buffer.input]) * self.instances
+            if not self.collective.inplace:
+                gpu.output_chunks = len(self.buffers[gpu.rank][Buffer.output]) * self.instances
+        return program
 
     def generate_json(self):
         return ir_to_json(self.lower())

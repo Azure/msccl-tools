@@ -37,7 +37,7 @@ def allreduce_allpairs(gpus, instances):
             c.group_store(ngbrs, sendtb=0)
 
         Json()
-        # Check()
+        Check()
 
 
 parser = argparse.ArgumentParser()
