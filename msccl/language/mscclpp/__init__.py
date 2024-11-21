@@ -81,6 +81,9 @@ class MSCCLPPProgram:
             tb = self.instr_dag.tbs[rank][tbid]
             tb.ops.append(op)
 
+    def get_rank_ref(self, rank):
+        return RankRef(rank, self)
+
     # Tracks a send operation on the buffers
     def apply_send(self, src, src_buffer, src_index, dst, dst_buffer, dst_index, size):
         src_buffer, src_index = self.collective.get_buffer_index(src, src_buffer, src_index)
@@ -149,6 +152,15 @@ class MSCCLPPProgram:
 
 def Json():
     print(_curr().generate_json())
+
+
+@dataclass
+class RankRef:
+    rank: int
+    prog: MSCCLPPProgram
+
+    def barrier(self, tb_list):
+        return self.prog.instr_dag.add_barrier(self.rank, tb_list)
 
 
 @dataclass
