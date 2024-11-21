@@ -131,7 +131,8 @@ class MscclppInstructionDAG(InstructionDAG):
         buffer = send_ref.buffer
         index = send_ref.index
         size = send_ref.size
-        # treat signal as a write since it can not be executed parallelly with read operations
+        # treat signal as a write. signal acts as a barrier for the next instruction which prevents the
+        # below instructions to be scheduled above the signal instruction.
         self._write(rank, buffer, index, size, op)
         op.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
         op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
@@ -191,6 +192,16 @@ class MscclppInstructionDAG(InstructionDAG):
         self._write(rank, buffer, index, size, op, read=True)
         return op
 
+    def add_barrier(self, rank, tb_list):
+        for tb in tb_list:
+            tb_step = self._get_tb_step(rank, tb)
+            additonal = {"tb_list": tb_list}
+            op = Op(Instruction.barrier, rank, None, None, next=set(), prev=set(), tb=tb, step=tb_step, additional=additonal)
+            self._write(rank, Buffer.scratch, 0, 1, op, tb_step)
+            self._write(rank, Buffer.input, 0, 1, op, tb_step)
+            self._write(rank, Buffer.output, 0, 1, op, tb_step)
+
+    
     def complete_channels(self):
         send_op = [Instruction.put, Instruction.signal, Instruction.put_packet]
         recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
@@ -419,9 +430,7 @@ class MscclppInstructionDAG(InstructionDAG):
                         idst = get_instance_ref(op.dst)
                         idepends = []
                         # Note: We don't need the fill out the rest of the metadata since replication is the last optimization
-                        iop = Op(
-                            op.inst, op.rank, isrc, idst, idepends, op.step, itbid, channel_type=op.channel_type
-                        )
+                        iop = Op(op.inst, op.rank, isrc, idst, idepends, op.step, itbid, channel_type=op.channel_type)
                         itb.ops[s] = iop
                         for src, step in op.srcs:
                             isrc = get_instance_ref(src)
