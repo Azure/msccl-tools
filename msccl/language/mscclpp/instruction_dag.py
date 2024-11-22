@@ -193,13 +193,13 @@ class MscclppInstructionDAG(InstructionDAG):
         return op
 
     def add_barrier(self, rank, tb_list):
+        buffers = self.buffers[rank]
         for tb in tb_list:
             tb_step = self._get_tb_step(rank, tb)
             additonal = {"tb_list": tb_list}
             op = Op(Instruction.barrier, rank, None, None, next=set(), prev=set(), tb=tb, step=tb_step, additional=additonal)
-            self._write(rank, Buffer.scratch, 0, 1, op, tb_step)
-            self._write(rank, Buffer.input, 0, 1, op, tb_step)
-            self._write(rank, Buffer.output, 0, 1, op, tb_step)
+            for buffer_type, buffer in buffers.items():
+                self._write(rank, buffer_type, 0, len(buffer), op)
 
     
     def complete_channels(self):
@@ -209,6 +209,8 @@ class MscclppInstructionDAG(InstructionDAG):
             for tbid, tb in rank_tbs.items():
                 chans = set()
                 for op in tb.ops:
+                    if op.inst == Instruction.barrier:
+                        continue
                     src_buffer = (
                         Buffer.scratch
                         if op.src.buffer is not Buffer.input and op.src.buffer is not Buffer.output
