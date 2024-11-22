@@ -178,7 +178,7 @@ class Op:
     channel_type: ChannelType = ChannelType.none
     srcs: list = field(default_factory=list)
     dsts: list = field(default_factory=list)
-    additional: dict = field(default_factory=dict)
+    extra: dict = field(default_factory=dict)
 
     def cnt(self):
         if self.src:

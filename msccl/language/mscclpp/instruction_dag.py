@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 
+import copy
 from msccl.language.buffer import Buffer
 from msccl.language.instruction_dag import (
     same_buf_dst,
@@ -196,12 +197,11 @@ class MscclppInstructionDAG(InstructionDAG):
         buffers = self.buffers[rank]
         for tb in tb_list:
             tb_step = self._get_tb_step(rank, tb)
-            additonal = {"tb_list": tb_list, "barrier_id": barrier_id}
-            op = Op(Instruction.barrier, rank, None, None, next=set(), prev=set(), tb=tb, step=tb_step, additional=additonal)
+            extra = {"tb_list": tb_list, "barrier_id": barrier_id}
+            op = Op(Instruction.barrier, rank, None, None, next=set(), prev=set(), tb=tb, step=tb_step, extra=extra)
             for buffer_type, buffer in buffers.items():
                 self._write(rank, buffer_type, 0, len(buffer), op)
 
-    
     def complete_channels(self):
         send_op = [Instruction.put, Instruction.signal, Instruction.put_packet]
         recv_op = [Instruction.wait, Instruction.get, Instruction.read_reduce_copy]
@@ -415,9 +415,18 @@ class MscclppInstructionDAG(InstructionDAG):
             return len(self.buffers[rank][buffer]) * i + index
 
         def get_instance_ref(ref):
+            if ref is None:
+                return None
             iindex = get_new_index(ref.rank, ref.buffer, ref.index, ref.size, i)
             iref = ChunkRef(ref.rank, ref.buffer, iindex, ref.size)
             return iref
+
+        def update_extra(op, ori_op):
+            if op.inst == Instruction.barrier:
+                tb_list = ori_op.extra["tb_list"]
+                new_tb_list = [tb * instances + i for tb in tb_list]
+                op.extra["tb_list"] = new_tb_list
+                op.extra["barrier_id"] = ori_op.extra["barrier_id"] * instances + i
 
         for i in range(instances):
             # Generate all the threadblocks and ops
@@ -432,7 +441,18 @@ class MscclppInstructionDAG(InstructionDAG):
                         idst = get_instance_ref(op.dst)
                         idepends = []
                         # Note: We don't need the fill out the rest of the metadata since replication is the last optimization
-                        iop = Op(op.inst, op.rank, isrc, idst, idepends, op.step, itbid, channel_type=op.channel_type)
+                        iop = Op(
+                            op.inst,
+                            op.rank,
+                            isrc,
+                            idst,
+                            idepends,
+                            op.step,
+                            itbid,
+                            channel_type=op.channel_type,
+                            extra=copy.deepcopy(op.extra),
+                        )
+                        update_extra(iop, op)
                         itb.ops[s] = iop
                         for src, step in op.srcs:
                             isrc = get_instance_ref(src)
