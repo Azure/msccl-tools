@@ -6,6 +6,7 @@ from msccl.language.buffer import *
 from msccl.language.types import ChannelType
 from msccl.language.mscclpp.ir import *
 from msccl.language.mscclpp.instruction_dag import MscclppInstructionDAG
+from msccl.language.mscclpp.rank import Rank
 from msccl.language.tb_assignment import *
 from msccl.topologies.topology import Topology
 
@@ -51,7 +52,9 @@ class MSCCLPPProgram:
         # Initialize the input buffers
         self.buffers = collective.init_buffers()
         self.instr_dag = MscclppInstructionDAG(self.num_ranks, self.buffers)
+        self.ranks = []
         for r in range(self.num_ranks):
+            self.ranks.append(Rank(r))
             for index, chunk in enumerate(self.buffers[r][Buffer.input]):
                 buffer, index = self.collective.get_buffer_index(r, Buffer.input, index)
                 ref = self.get_ref(r, buffer, index, 1)
@@ -159,8 +162,12 @@ class RankRef:
     rank: int
     prog: MSCCLPPProgram
 
+    def _get_barrier_id(self, tb_list) -> int:
+        return self.prog.ranks[self.rank].get_barrier_id(tb_list)
+
     def barrier(self, tb_list):
-        return self.prog.instr_dag.add_barrier(self.rank, tb_list)
+        barrier_id = self._get_barrier_id(tb_list)
+        return self.prog.instr_dag.add_barrier(self.rank, tb_list, barrier_id)
 
 
 @dataclass

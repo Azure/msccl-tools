@@ -258,6 +258,8 @@ def dump_to_json(program: Program):
                         "name": op.inst.value,
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
+                elif op.inst == Instruction.barrier:
+                    instr = {"name": op.inst.value, "n_thread_blocks": len(op.additional["tb_list"]), "barrier_id": op.additional["barrier_id"]}
                 elif (
                     op.inst == Instruction.put
                     or op.inst == Instruction.put_packet
@@ -282,7 +284,7 @@ def dump_to_json(program: Program):
                 ):
                     src = op.src
                     dst = op.dst
-                if op.inst != Instruction.nop:
+                if op.inst != Instruction.nop and op.inst != Instruction.barrier:
                     instr = {
                         "name": op.inst.value,
                         "i_buff": i_buff,

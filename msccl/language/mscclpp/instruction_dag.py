@@ -192,11 +192,11 @@ class MscclppInstructionDAG(InstructionDAG):
         self._write(rank, buffer, index, size, op, read=True)
         return op
 
-    def add_barrier(self, rank, tb_list):
+    def add_barrier(self, rank, tb_list, barrier_id):
         buffers = self.buffers[rank]
         for tb in tb_list:
             tb_step = self._get_tb_step(rank, tb)
-            additonal = {"tb_list": tb_list}
+            additonal = {"tb_list": tb_list, "barrier_id": barrier_id}
             op = Op(Instruction.barrier, rank, None, None, next=set(), prev=set(), tb=tb, step=tb_step, additional=additonal)
             for buffer_type, buffer in buffers.items():
                 self._write(rank, buffer_type, 0, len(buffer), op)
