@@ -10,6 +10,7 @@ from msccl.language.instruction_dag import (
     same_count,
     same_buf_dst,
     same_buf_src,
+    same_tb,
     all_prevs_visited_after_merge,
 )
 from msccl.language.types import ChunkRef, ChannelType, MscclppInstruction as Instruction, Op, Threadblock
@@ -38,6 +39,7 @@ class InstructionOptimizer:
         """
         if (
             next_op.inst == expected_next_inst
+            and same_tb(op, next_op)
             and same_buf_func(op, next_op)
             and same_count(op, next_op)
             and same_chan_type(op, next_op)
@@ -122,6 +124,7 @@ class InstructionOptimizer:
         if (
             next_op.inst == Instruction.put
             or next_op.inst == Instruction.put_packet
+            and same_tb(op, next_op)
             and same_count(op, next_op)
             and buf_dst_src_match(op, next_op)
             and next_op.channel_type == ChannelType.sm
@@ -168,6 +171,7 @@ class InstructionOptimizer:
         """
         if (
             next_op.inst == expected_next_inst
+            and same_tb(op, next_op)
             and same_count(op, next_op)
             and same_buf_dst(op, next_op)
             and same_buf_src(op, next_op)
