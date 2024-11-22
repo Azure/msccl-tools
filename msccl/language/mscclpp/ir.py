@@ -39,6 +39,7 @@ _insts_no_need_sync_barrier: set = {
     Instruction.copy_packet,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
+    Instruction.barrier,
 }
 
 
@@ -259,7 +260,7 @@ def dump_to_json(program: Program):
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
                 elif op.inst == Instruction.barrier:
-                    instr = {"name": op.inst.value, "n_thread_blocks": len(op.additional["tb_list"]), "barrier_id": op.additional["barrier_id"]}
+                    instr = {"name": op.inst.value, "nthread_blocks": len(op.additional["tb_list"]), "barrier_id": op.additional["barrier_id"]}
                 elif (
                     op.inst == Instruction.put
                     or op.inst == Instruction.put_packet
