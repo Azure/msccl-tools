@@ -124,8 +124,14 @@ def ir_to_json(program: Program):
                 # Expand extra dependencies into nop operations
                 nop = Op(Instruction.nop, -1, None, None, [])
                 for i, dep in enumerate(op.depends):
-                    nop.depends.append(dep)
-                if len(op.depends) > 0:
+                    # barrier already syncs all threads
+                    if dep.inst != Instruction.barrier:
+                        nop.depends.append(dep)
+                if len(new_ops) > 0 and (
+                    new_ops[-1].inst == Instruction.barrier or new_ops[-1].inst == Instruction.nop
+                ):
+                    new_ops[-1].depends.extend(nop.depends)
+                elif len(nop.depends) > 0:
                     new_ops.append(nop)
                 new_ops.append(op)
             tb.ops = new_ops
@@ -261,7 +267,6 @@ def dump_to_json(program: Program):
                 elif op.inst == Instruction.nop:
                     instr = {
                         "name": op.inst.value,
-                        "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
                 elif op.inst == Instruction.barrier:
                     instr = {"name": op.inst.value, "nthread_blocks": len(op.extra["tb_list"]), "barrier_id": op.extra["barrier_id"]}
