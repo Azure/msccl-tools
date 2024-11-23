@@ -267,6 +267,7 @@ def dump_to_json(program: Program):
                 elif op.inst == Instruction.nop:
                     instr = {
                         "name": op.inst.value,
+                        "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
                 elif op.inst == Instruction.barrier:
                     instr = {"name": op.inst.value, "nthread_blocks": len(op.extra["tb_list"]), "barrier_id": op.extra["barrier_id"]}
