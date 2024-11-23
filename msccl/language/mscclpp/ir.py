@@ -122,8 +122,11 @@ def ir_to_json(program: Program):
                     new_ops.append(op)
                     continue
                 # Expand extra dependencies into nop operations
+                nop = Op(Instruction.nop, -1, None, None, [])
                 for i, dep in enumerate(op.depends):
-                    new_ops.append(Op(Instruction.nop, -1, None, None, [dep]))
+                    nop.depends.append(dep)
+                if len(op.depends) > 0:
+                    new_ops.append(nop)
                 new_ops.append(op)
             tb.ops = new_ops
 
@@ -197,8 +200,9 @@ def dump_to_json(program: Program):
                     "chanIds": [id for id, ele in enumerate(channels) if ele[0] == tb.id],
                     "connectedTo": [ele[1] for ele in channels if ele[0] == tb.id],
                 }
-                tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
-                tb_channels.append(obj)
+                if len(obj["chanIds"]) > 0:
+                    tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
+                    tb_channels.append(obj)
             tb_channels = filter(lambda x: x["type"] != "none", tb_channels)
             tb_channels = sorted(tb_channels, key=lambda x: (x["srcbuff"], x["dstbuff"]))
             for op in tb.ops:
