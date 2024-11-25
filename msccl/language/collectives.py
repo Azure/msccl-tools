@@ -65,6 +65,8 @@ class AllGather(Collective):
     def __init__(self, num_ranks, chunk_factor, inplace, create_all_chunks=False):
         Collective.__init__(self, num_ranks, chunk_factor, inplace)
         self.name = "allgather"
+        # This flag is a temporary solution, which initialize all the chuncks only for inputbuffer
+        # In this future we need to remove this flag and always initialize all the chunks
         self.create_all_chunks = create_all_chunks
 
     # Initializes input buffer for an allgather
