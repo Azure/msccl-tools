@@ -20,6 +20,8 @@ _local_src_insts_mscclpp: set = {
     Instruction.reduce_packet,
     Instruction.reduce_send,
     Instruction.reduce_send_packet,
+    Instruction.group_load_reduce_store,
+    Instruction.group_store,
 }
 _local_dst_insts_mscclpp: set = {
     Instruction.get,
@@ -33,6 +35,8 @@ _local_dst_insts_mscclpp: set = {
     Instruction.reduce_send,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
+    Instruction.group_load_reduce_store,
+    Instruction.group_load_reduce,
 }
 
 _insts_no_need_sync_barrier: set = {
@@ -158,19 +162,31 @@ def dump_to_json(program: Program):
 
     def get_channel_ids(chunk_list, tb_channel_dict, src_buffer, dst_buffer, chan_type):
         channel_ids = []
-        for c in chunk_list:
-            key = (src_buffer, dst_buffer, chan_type)
+        key = (src_buffer, dst_buffer, chan_type)
+        if chan_type == ChannelType.nvls:
+            ranks = []
+            for c in chunk_list:
+                ranks.append(c.rank)
             channel_ids.extend(
-                [
-                    {"id": id, "off": c.index}
-                    for id, ele in enumerate(tb_channel_dict[key]["connectedTo"])
-                    if ele == c.rank
-                ]
+                [{"id": id} for id, ele in enumerate(tb_channel_dict[key]["connectedTo"]) if set(ele) == set(ranks)]
             )
+        else:
+            for c in chunk_list:
+                channel_ids.extend(
+                    [
+                        {"id": id, "off": c.index}
+                        for id, ele in enumerate(tb_channel_dict[key]["connectedTo"])
+                        if ele == c.rank
+                    ]
+                )
         return channel_ids
 
     def remove_empty_fields(d):
         return {k: v for k, v in d.items() if v not in [None, "", [], {}]}
+
+    max_scratch = max(gpu.scratch_chunks for gpu in program.gpus)
+    max_input = max(gpu.input_chunks for gpu in program.gpus)
+    max_output = max(gpu.output_chunks for gpu in program.gpus)
 
     for id, gpu in enumerate(program.gpus):
         gpu_instance = {
@@ -189,9 +205,27 @@ def dump_to_json(program: Program):
                 "type": type.value,
                 "connectedTo": [eles[1] for eles in channels],
             }
+            if type == ChannelType.nvls:
+                obj["connectedTo"] = [sorted(list(eles)) for eles in obj["connectedTo"]]
             gpu_instance["channels"].append(obj)
         gpu_instance["channels"] = list(filter(lambda x: x["type"] != "none", gpu_instance["channels"]))
         gpu_instance["channels"] = sorted(gpu_instance["channels"], key=lambda x: (x["srcbuff"], x["dstbuff"]))
+
+        # render for GPU NVLS channels
+        for i, chan in enumerate(gpu_instance["channels"]):
+            if chan["type"] == "nvls":
+                buff = chan["srcbuff"]
+                buffer_size = (
+                    max_input
+                    if buff == Buffer.input.value
+                    else max_output if buff == Buffer.output.value else max_scratch
+                )
+                gpu_instance["channels"][i] = {
+                    "buff": chan["srcbuff"],
+                    "type": chan["type"],
+                    "rankGroups": [{"size": buffer_size, "ranks": ranks} for ranks in chan["connectedTo"]],
+                }
+
         for tb in gpu.threadblocks:
             if tb.id < 0:
                 continue
@@ -295,6 +329,15 @@ def dump_to_json(program: Program):
                 ):
                     src = op.src
                     dst = op.dst
+                elif op.inst == Instruction.group_load_reduce_store:
+                    src = op.src
+                    dst = op.dst
+                    src_channel_ids = get_channel_ids(
+                        op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                    )
+                    dst_channel_ids = get_channel_ids(
+                        op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                    )
                 if op.inst != Instruction.nop and op.inst != Instruction.barrier:
                     instr = {
                         "name": op.inst.value,

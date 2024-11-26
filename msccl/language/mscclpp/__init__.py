@@ -138,7 +138,7 @@ class MSCCLPPProgram:
             self.instr_dag.optimize()
         self.instr_dag.lower_pt1(self.instances)
         gpu_prgms = self.instr_dag.lower_pt2(self.instances, self.replication_policy)
-        return Program(
+        program = Program(
             self.name,
             self.collective.name,
             self.collective.inplace,
@@ -148,6 +148,11 @@ class MSCCLPPProgram:
             self.num_threads_per_block,
             self.use_double_scratch_buffer,
         )
+        for gpu in program.gpus:
+            gpu.input_chunks = len(self.buffers[gpu.rank][Buffer.input]) * self.instances
+            if not self.collective.inplace:
+                gpu.output_chunks = len(self.buffers[gpu.rank][Buffer.output]) * self.instances
+        return program
 
     def generate_json(self):
         return ir_to_json(self.lower())
@@ -345,6 +350,60 @@ class Ref(ChunkRef):
     # Reduces the chunk(s) referenced by other_chunkref into the chunk(s) referenced by this chunkref
     def reduce_packet(self, other_chunkref, recvtb=-1):
         return self._reduce(other_chunkref, recvtb, use_packet=True)
+
+    # """
+    # Group operations. These operations are used to perform collective operations across multiple chunks.
+    # For now, all chunks must has the same buffer type and offset.
+    # """
+    # Reads the chunk(s) referenced by other_chunkref and reduce into the chunk referenced by this chunkref
+    def group_load_reduce(self, other_chunkrefs: list, recvtb=-1, chan_type=ChannelType.nvls):
+        assert (
+            len(other_chunkrefs) > 0 and chan_type == ChannelType.nvls
+        ), "Group load reduce only supports nvls channel"
+        nranks_per_node = self.prog.collective.num_ranks_per_node
+        for other_chunkref in other_chunkrefs:
+            assert (
+                self.rank // nranks_per_node == other_chunkref.rank // nranks_per_node
+            ), "Group load reduce only supports chunks on the same node"
+            assert self.buffer == other_chunkref.buffer, "Group load reduce only supports chunks with the same buffer"
+            assert self.index == other_chunkref.index, "Group load reduce only supports chunks with the same index"
+
+            src_chunkref = other_chunkref
+            self.prog.apply_reduce(
+                src_chunkref.rank,
+                src_chunkref.buffer,
+                src_chunkref.index,
+                self.rank,
+                self.buffer,
+                self.index,
+                self.size,
+            )
+        self.prog.instr_dag.add_group_load_reduce(self.rank, other_chunkrefs, self, recvtb, chan_type)
+        return self
+
+    # Copies the chunk(s) referenced by this chunkref onto other_chunkrefs
+    def group_store(self, dsts: list, index=-1, buffer=None, sendtb=-1, chan_type=ChannelType.nvls):
+        for dst in dsts:
+            self.prog.check_buffer_exists(dst, buffer)
+        assert index == -1 or self.index == index, "Group store only supports chunks with the same index"
+        assert chan_type == ChannelType.nvls, "Group store only supports nvls channel"
+
+        other_chunkrefs = []
+        nrank_per_node = self.prog.collective.num_ranks_per_node
+        for dst in dsts:
+            # Direct linked
+            buffer, index = self._get_buffer_index(dst, buffer, index)
+            assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+            assert self.buffer == buffer, "Group store only supports chunks with the same buffer"
+            assert (
+                self.rank // nrank_per_node == dst // nrank_per_node
+            ), "Group store only supports chunks on the same node"
+
+            dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
+            self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
+            other_chunkrefs.append(dst_chunkref)
+        # add new op here
+        self.prog.instr_dag.add_group_store(self.rank, self, other_chunkrefs, sendtb, chan_type)
 
     def get_origin_index(self, index=0):
         return self._get_chunk(index + self.index).origin_index
