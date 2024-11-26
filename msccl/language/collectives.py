@@ -4,13 +4,24 @@ from msccl.language import *
 
 
 class Collective:
-    def __init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups=1):
+
+    def __init__(self, num_ranks, chunk_factor, inplace, num_ranks_per_node=-1, **kwargs):
         self.num_ranks = num_ranks
         self.chunk_factor = chunk_factor
         self.inplace = inplace
         self.name = "custom"
-        # Devide the buffer into num_chunk_groups groups
-        self.num_chunk_groups = num_chunk_groups
+        # Devide the buffer into num_chunk_groups group
+        if num_ranks_per_node == -1:
+            self.num_ranks_per_node = num_ranks
+        else:
+            self.num_ranks_per_node = num_ranks_per_node
+
+        # kwargs
+        # Number of chunk groups: which means we will group n chunks into m groups. 
+        # We will gurantee that the group size is the same.
+        # But in the same group, the chunk size may be different due to group size 
+        # can not be divided by the number of chunks.
+        self.num_chunk_groups = kwargs.get("num_chunk_groups", 1)
 
     def init_buffers(self):
         pass
@@ -128,10 +139,11 @@ class AllGather(Collective):
 
 class AllReduce(Collective):
 
-    def __init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups=None):
-        if num_chunk_groups == None:
-            num_chunk_groups = num_ranks
-        Collective.__init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups)
+    def __init__(self, num_ranks, chunk_factor, inplace, num_ranks_per_node=-1, **kwargs):
+        num_chunk_groups = kwargs.get('num_chunk_groups', num_ranks)
+        Collective.__init__(
+            self, num_ranks, chunk_factor, inplace, num_ranks_per_node, num_chunk_groups=num_chunk_groups
+        )
         self.name = "allreduce"
 
     def init_buffers(self):
