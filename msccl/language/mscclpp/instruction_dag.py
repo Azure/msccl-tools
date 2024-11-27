@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 
+import copy
 from msccl.language.buffer import Buffer
 from msccl.language.instruction_dag import (
     same_buf_dst,
@@ -131,7 +132,8 @@ class MscclppInstructionDAG(InstructionDAG):
         buffer = send_ref.buffer
         index = send_ref.index
         size = send_ref.size
-        # treat signal as a write since it can not be executed parallelly with read operations
+        # treat signal as a write. signal acts as a barrier for the next instruction which prevents the
+        # below instructions to be scheduled above the signal instruction.
         self._write(rank, buffer, index, size, op)
         op.dsts.append((ChunkRef(recv_ref.rank, recv_ref.buffer, recv_ref.index, recv_ref.size), tb_step))
         op.srcs.append((ChunkRef(send_ref.rank, send_ref.buffer, send_ref.index, send_ref.size), tb_step))
@@ -191,6 +193,15 @@ class MscclppInstructionDAG(InstructionDAG):
         self._write(rank, buffer, index, size, op, read=True)
         return op
 
+    def add_barrier(self, rank, tb_list, barrier_id):
+        buffers = self.buffers[rank]
+        for tb in tb_list:
+            tb_step = self._get_tb_step(rank, tb)
+            extra = {"tb_list": tb_list, "barrier_id": barrier_id}
+            op = Op(Instruction.barrier, rank, None, None, next=set(), prev=set(), tb=tb, step=tb_step, extra=extra)
+            for buffer_type, buffer in buffers.items():
+                self._write(rank, buffer_type, 0, len(buffer), op)
+
     def add_group_load_reduce(self, rank, send_refs, recv_ref, tb, ch_type):
         tb_step = self._get_tb_step(rank, tb)
         op = Op(
@@ -245,6 +256,8 @@ class MscclppInstructionDAG(InstructionDAG):
             for tbid, tb in rank_tbs.items():
                 chans = set()
                 for op in tb.ops:
+                    if op.inst == Instruction.barrier:
+                        continue
                     if op.src != None:
                         src_buffer = (
                             Buffer.scratch
@@ -483,9 +496,18 @@ class MscclppInstructionDAG(InstructionDAG):
             return len(self.buffers[rank][buffer]) * i + index
 
         def get_instance_ref(ref):
+            if ref is None:
+                return None
             iindex = get_new_index(ref.rank, ref.buffer, ref.index, ref.size, i)
             iref = ChunkRef(ref.rank, ref.buffer, iindex, ref.size)
             return iref
+
+        def update_extra(op, ori_op):
+            if op.inst == Instruction.barrier:
+                tb_list = ori_op.extra["tb_list"]
+                new_tb_list = [tb * instances + i for tb in tb_list]
+                op.extra["tb_list"] = new_tb_list
+                op.extra["barrier_id"] = ori_op.extra["barrier_id"] * instances + i
 
         for i in range(instances):
             # Generate all the threadblocks and ops
@@ -501,8 +523,17 @@ class MscclppInstructionDAG(InstructionDAG):
                         idepends = []
                         # Note: We don't need the fill out the rest of the metadata since replication is the last optimization
                         iop = Op(
-                            op.inst, op.rank, isrc, idst, idepends, op.step, itbid, channel_type=op.channel_type
+                            op.inst,
+                            op.rank,
+                            isrc,
+                            idst,
+                            idepends,
+                            op.step,
+                            itbid,
+                            channel_type=op.channel_type,
+                            extra=copy.deepcopy(op.extra),
                         )
+                        update_extra(iop, op)
                         itb.ops[s] = iop
                         for src, step in op.srcs:
                             isrc = get_instance_ref(src)

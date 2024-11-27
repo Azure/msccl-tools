@@ -91,6 +91,9 @@ def same_buf_src(op1: Op, op2: Op):
 def same_chan_type(op1: Op, op2: Op):
     return op1.channel_type == op2.channel_type
 
+def same_tb(op1: Op, op2: Op):
+    return op1.tb == op2.tb
+
 
 class InstructionDAG(ABC):
     def __init__(self, num_ranks, buffers):

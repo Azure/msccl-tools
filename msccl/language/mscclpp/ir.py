@@ -43,6 +43,7 @@ _insts_no_need_sync_barrier: set = {
     Instruction.copy_packet,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
+    Instruction.barrier,
 }
 
 
@@ -125,8 +126,17 @@ def ir_to_json(program: Program):
                     new_ops.append(op)
                     continue
                 # Expand extra dependencies into nop operations
+                nop = Op(Instruction.nop, -1, None, None, [])
                 for i, dep in enumerate(op.depends):
-                    new_ops.append(Op(Instruction.nop, -1, None, None, [dep]))
+                    # barrier already syncs all threads
+                    if dep.inst != Instruction.barrier:
+                        nop.depends.append(dep)
+                if len(new_ops) > 0 and (
+                    new_ops[-1].inst == Instruction.barrier or new_ops[-1].inst == Instruction.nop
+                ):
+                    new_ops[-1].depends.extend(nop.depends)
+                elif len(nop.depends) > 0:
+                    new_ops.append(nop)
                 new_ops.append(op)
             tb.ops = new_ops
 
@@ -230,8 +240,9 @@ def dump_to_json(program: Program):
                     "chanIds": [id for id, ele in enumerate(channels) if ele[0] == tb.id],
                     "connectedTo": [ele[1] for ele in channels if ele[0] == tb.id],
                 }
-                tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
-                tb_channels.append(obj)
+                if len(obj["chanIds"]) > 0:
+                    tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
+                    tb_channels.append(obj)
             tb_channels = filter(lambda x: x["type"] != "none", tb_channels)
             tb_channels = sorted(tb_channels, key=lambda x: (x["srcbuff"], x["dstbuff"]))
             for op in tb.ops:
@@ -292,6 +303,8 @@ def dump_to_json(program: Program):
                         "name": op.inst.value,
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
+                elif op.inst == Instruction.barrier:
+                    instr = {"name": op.inst.value, "nthread_blocks": len(op.extra["tb_list"]), "barrier_id": op.extra["barrier_id"]}
                 elif (
                     op.inst == Instruction.put
                     or op.inst == Instruction.put_packet
@@ -325,7 +338,7 @@ def dump_to_json(program: Program):
                     dst_channel_ids = get_channel_ids(
                         op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
                     )
-                if op.inst != Instruction.nop:
+                if op.inst != Instruction.nop and op.inst != Instruction.barrier:
                     instr = {
                         "name": op.inst.value,
                         "i_buff": i_buff,

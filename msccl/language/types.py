@@ -124,6 +124,7 @@ class MscclppInstruction(Enum):
     wait = "wait"
     signal = "signal"
     flush = "flush"
+    barrier = "barrier"
     group_store = "gstore"
     group_load_reduce = "glre"
     group_load_reduce_store = "glres"
@@ -186,6 +187,7 @@ class Op:
     channel_type: ChannelType = ChannelType.none
     srcs: list = field(default_factory=list)
     dsts: list = field(default_factory=list)
+    extra: dict = field(default_factory=dict)
 
     def cnt(self):
         if self.src:
