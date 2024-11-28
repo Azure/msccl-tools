@@ -377,5 +377,8 @@ def dump_to_json(program: Program):
         "gpus": gpus,
         "num_threads_per_block": program.num_threads_per_block,
         "use_double_scratch_buffer": program.use_double_scratch_buffer,
+        "min_message_size": program.min_message_size,
+        "max_message_size": program.max_message_size,
+        "in_place": program.inplace,
     }
     return json.dumps(obj, indent=2)

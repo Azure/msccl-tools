@@ -36,6 +36,8 @@ class MSCCLPPProgram:
         replication_policy: ReplicationPolicy = ReplicationPolicy.duplicated,
         num_threads_per_block: int = 1024,
         use_double_scratch_buffer: bool = False,
+        min_message_size: int = -1,
+        max_message_size: int = -1 ,
     ):
         self.name = name
         self.topo = topo
@@ -47,6 +49,8 @@ class MSCCLPPProgram:
         self.replication_policy = replication_policy
         self.num_threads_per_block = num_threads_per_block
         self.use_double_scratch_buffer = use_double_scratch_buffer
+        self.min_message_size = min_message_size
+        self.max_message_size = max_message_size
         assert protocol == "Simple" or protocol == "LL", f"Given protocol: {protocol}. Must be either Simple, LL"
         self.run_opt = True  # Runs optimization passes
         # Initialize the input buffers
@@ -147,6 +151,8 @@ class MSCCLPPProgram:
             self.collective.num_chunk_groups * self.instances,
             self.num_threads_per_block,
             self.use_double_scratch_buffer,
+            self.min_message_size,
+            self.max_message_size,
         )
         for gpu in program.gpus:
             gpu.input_chunks = len(self.buffers[gpu.rank][Buffer.input]) * self.instances
