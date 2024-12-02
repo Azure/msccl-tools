@@ -25,7 +25,6 @@ def _curr():
 # If one sender what to send data to peer want to use different tb in receiver side. We need to send to same tb in receiver side first,
 # then performance a across tb sync. This is a limitation of current implementation.
 class MSCCLPPProgram:
-
     def __init__(
         self,
         name: str,
@@ -339,7 +338,9 @@ class Ref(ChunkRef):
         dst = self.rank
         src = other_chunkref.rank
         assert self.prog.topo.link(src, dst) or src == dst, f"No link from {src} to {dst}"
-        self.prog.apply_reduce(src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size)
+        self.prog.apply_reduce(
+            src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
+        )
         if use_packet:
             assert src == dst, "Packet reduce only supports intra-rank communication"
 
