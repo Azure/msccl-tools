@@ -25,6 +25,7 @@ def _curr():
 # If one sender what to send data to peer want to use different tb in receiver side. We need to send to same tb in receiver side first,
 # then performance a across tb sync. This is a limitation of current implementation.
 class MSCCLPPProgram:
+
     def __init__(
         self,
         name: str,
@@ -36,8 +37,8 @@ class MSCCLPPProgram:
         replication_policy: ReplicationPolicy = ReplicationPolicy.duplicated,
         num_threads_per_block: int = 1024,
         use_double_scratch_buffer: bool = False,
-        min_message_size: int = -1,
-        max_message_size: int = -1 ,
+        min_message_size: int = 0,
+        max_message_size: int = 2**64 - 1,
     ):
         self.name = name
         self.topo = topo

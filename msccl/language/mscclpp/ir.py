@@ -371,7 +371,7 @@ def dump_to_json(program: Program):
         gpus.append(gpu_instance)
     obj = {
         "name": program.name,
-        "colletive": program.collective,
+        "collective": program.collective,
         "protocol": program.protocol,
         "inplace": program.inplace,
         "gpus": gpus,
@@ -379,6 +379,5 @@ def dump_to_json(program: Program):
         "use_double_scratch_buffer": program.use_double_scratch_buffer,
         "min_message_size": program.min_message_size,
         "max_message_size": program.max_message_size,
-        "in_place": program.inplace,
     }
     return json.dumps(obj, indent=2)
