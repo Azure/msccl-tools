@@ -487,11 +487,7 @@ class MscclppInstructionDAG(InstructionDAG):
             return buffer != Buffer.input and buffer != Buffer.output
 
         def get_new_index(rank, buffer, index, size, i):
-            # Scratch buffers always use batched
-            if is_scratch(buffer):
-                buf_instance_len = self.buffers[rank][buffer].instance_size()
-                return buf_instance_len * i + index
-            elif replication_policy == ReplicationPolicy.interleaved:
+            if replication_policy == ReplicationPolicy.interleaved:
                 return index * instances + i * size
             return len(self.buffers[rank][buffer]) * i + index
 
