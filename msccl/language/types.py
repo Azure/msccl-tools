@@ -18,6 +18,8 @@ class Program:
     num_chunk_groups: int = 1
     num_threads_per_block: int = 1024
     use_double_scratch_buffer: bool = False
+    min_message_size: int = 0
+    max_message_size: int = 2**64 - 1
 
 
 @dataclass
