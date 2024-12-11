@@ -4,13 +4,24 @@ from msccl.language import *
 
 
 class Collective:
-    def __init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups=1):
+
+    def __init__(self, num_ranks, chunk_factor, inplace, num_ranks_per_node=-1, **kwargs):
         self.num_ranks = num_ranks
         self.chunk_factor = chunk_factor
         self.inplace = inplace
         self.name = "custom"
-        # Devide the buffer into num_chunk_groups groups
-        self.num_chunk_groups = num_chunk_groups
+        # Devide the buffer into num_chunk_groups group
+        if num_ranks_per_node == -1:
+            self.num_ranks_per_node = num_ranks
+        else:
+            self.num_ranks_per_node = num_ranks_per_node
+
+        # kwargs
+        # Number of chunk groups: which means we will group n chunks into m groups. 
+        # We will gurantee that the group size is the same.
+        # But in the same group, the chunk size may be different due to group size 
+        # can not be divided by the number of chunks.
+        self.num_chunk_groups = kwargs.get("num_chunk_groups", 1)
 
     def init_buffers(self):
         pass
@@ -62,9 +73,12 @@ class AllToAll(Collective):
 
 
 class AllGather(Collective):
-    def __init__(self, num_ranks, chunk_factor, inplace):
+    def __init__(self, num_ranks, chunk_factor, inplace, create_all_chunks=False):
         Collective.__init__(self, num_ranks, chunk_factor, inplace)
         self.name = "allgather"
+        # This flag is a temporary solution, which initialize all the chuncks only for inputbuffer
+        # In this future we need to remove this flag and always initialize all the chunks
+        self.create_all_chunks = create_all_chunks
 
     # Initializes input buffer for an allgather
     def init_buffers(self):
@@ -73,8 +87,13 @@ class AllGather(Collective):
             # Inplace AllGather only uses the output buffer
             for r in range(self.num_ranks):
                 output_buffer = [None] * (self.num_ranks * self.chunk_factor)
-                for ch in range(self.chunk_factor):
-                    output_buffer[r * self.chunk_factor + ch] = Chunk(r, ch, -1, r * self.chunk_factor + ch)
+                if not self.create_all_chunks:
+                    for ch in range(self.chunk_factor):
+                        output_buffer[r * self.chunk_factor + ch] = Chunk(r, ch, -1, r * self.chunk_factor + ch)
+                else:
+                    for rank in range(self.num_ranks):
+                        for ch in range(self.chunk_factor):
+                            output_buffer[rank * self.chunk_factor + ch] = Chunk(rank, ch, -1, rank * self.chunk_factor + ch)
                 buffers = {
                     Buffer.input: output_buffer[r * self.chunk_factor : (r + 1) * self.chunk_factor],
                     Buffer.output: output_buffer,
@@ -120,10 +139,11 @@ class AllGather(Collective):
 
 class AllReduce(Collective):
 
-    def __init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups=None):
-        if num_chunk_groups == None:
-            num_chunk_groups = num_ranks
-        Collective.__init__(self, num_ranks, chunk_factor, inplace, num_chunk_groups)
+    def __init__(self, num_ranks, chunk_factor, inplace, num_ranks_per_node=-1, **kwargs):
+        num_chunk_groups = kwargs.get('num_chunk_groups', num_ranks)
+        Collective.__init__(
+            self, num_ranks, chunk_factor, inplace, num_ranks_per_node, num_chunk_groups=num_chunk_groups
+        )
         self.name = "allreduce"
 
     def init_buffers(self):

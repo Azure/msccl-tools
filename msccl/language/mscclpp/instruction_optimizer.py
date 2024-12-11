@@ -10,6 +10,7 @@ from msccl.language.instruction_dag import (
     same_count,
     same_buf_dst,
     same_buf_src,
+    same_tb,
     all_prevs_visited_after_merge,
 )
 from msccl.language.types import ChunkRef, ChannelType, MscclppInstruction as Instruction, Op, Threadblock
@@ -38,6 +39,7 @@ class InstructionOptimizer:
         """
         if (
             next_op.inst == expected_next_inst
+            and same_tb(op, next_op)
             and same_buf_func(op, next_op)
             and same_count(op, next_op)
             and same_chan_type(op, next_op)
@@ -122,6 +124,7 @@ class InstructionOptimizer:
         if (
             next_op.inst == Instruction.put
             or next_op.inst == Instruction.put_packet
+            and same_tb(op, next_op)
             and same_count(op, next_op)
             and buf_dst_src_match(op, next_op)
             and next_op.channel_type == ChannelType.sm
@@ -168,6 +171,7 @@ class InstructionOptimizer:
         """
         if (
             next_op.inst == expected_next_inst
+            and same_tb(op, next_op)
             and same_count(op, next_op)
             and same_buf_dst(op, next_op)
             and same_buf_src(op, next_op)
@@ -180,6 +184,35 @@ class InstructionOptimizer:
                 op.inst = Instruction.put_with_signal
             elif op.inst == Instruction.put_with_signal and next_op.inst == Instruction.flush:
                 op.inst = Instruction.put_with_signal_and_flush
+            # Merge operations
+            merge_op(op, next_op)
+            tb.ops.remove(next_op)
+            queue.remove(next_op)
+            return True
+        return False
+
+    def try_fuse_with_group_store(self, op: Op, next_op: Op, tb: Threadblock, queue: list) -> bool:
+        """
+        Attempts to fuse 'gruop_load_reduce' operations with 'group_store' operations.
+        :param op: The current operation.
+        :param next_op: The next operation to potentially merge with.
+        :param tb: The thread block containing the operations.
+        :param queue: The queue of operations.
+        :return: True if operations are merged, False otherwise.
+        """
+        if (
+            next_op.inst == Instruction.group_store
+            and same_count(op, next_op)
+            and buf_dst_src_match(op, next_op)
+            and same_chan_type(op, next_op)
+            and not circular_dep_after_merge(op, next_op)
+            and all_prevs_visited_after_merge(op, next_op)
+        ):
+            # Append the destination chunk from next_op
+            op.inst = Instruction.group_load_reduce_store
+            op.src = next_op.src
+            for dst in next_op.dsts:
+                op.dsts.append(dst)
             # Merge operations
             merge_op(op, next_op)
             tb.ops.remove(next_op)

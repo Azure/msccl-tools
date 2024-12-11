@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Union
+from typing import Union, List
 
 from msccl.language.buffer import Buffer
 
@@ -18,6 +18,8 @@ class Program:
     num_chunk_groups: int = 1
     num_threads_per_block: int = 1024
     use_double_scratch_buffer: bool = False
+    min_message_size: int = 0
+    max_message_size: int = 2**64 - 1
 
 
 @dataclass
@@ -124,6 +126,10 @@ class MscclppInstruction(Enum):
     wait = "wait"
     signal = "signal"
     flush = "flush"
+    barrier = "barrier"
+    group_store = "gstore"
+    group_load_reduce = "glre"
+    group_load_reduce_store = "glres"
 
     def __str__(self):
         return self.value
@@ -144,6 +150,7 @@ class ChannelType(Enum):
     proxy = "proxy"
     sm = "sm"
     none = "none"
+    nvls = "nvls"
 
     def __str__(self):
         return self.value
@@ -154,7 +161,12 @@ class Channel:
     srcBuffer: Buffer
     dstBuffer: Buffer
     type: ChannelType
-    connected_to: int
+    connected_to: Union[int, List[int]]
+
+    def __hash__(self):
+        # Ensure connected_to is converted to a tuple if it's a list
+        connected_to_hashable = tuple(self.connected_to) if isinstance(self.connected_to, list) else self.connected_to
+        return hash((self.srcBuffer, self.dstBuffer, self.type, connected_to_hashable))
 
 
 @dataclass
@@ -177,6 +189,7 @@ class Op:
     channel_type: ChannelType = ChannelType.none
     srcs: list = field(default_factory=list)
     dsts: list = field(default_factory=list)
+    extra: dict = field(default_factory=dict)
 
     def cnt(self):
         if self.src:

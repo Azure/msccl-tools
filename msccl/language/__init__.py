@@ -289,6 +289,9 @@ def chunk(rank, buffer, index, size=1) -> Union[mscclpp.Ref, Ref]:
         return None
     return _curr().get_ref(rank, buffer, index, size)
 
+def rank(rank) -> mscclpp.RankRef:
+    return _curr().get_rank_ref(rank)
+
 
 def create_scratch(rank, name):
     return _curr().create_scratch(rank, name)

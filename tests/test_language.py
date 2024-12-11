@@ -332,6 +332,32 @@ def test_illegal_tb_assignment():
             XML()
 
 
+def test_group_api():
+    num_gpus = 4
+    topology = fully_connected(num_gpus)
+    collective = AllReduce(num_gpus, num_gpus, True)
+    prgm = MSCCLPPProgram("allreduce", topology, collective, 1)
+    with prgm:
+        for rank in range(num_gpus):
+            index = rank
+            reduce_chunks = []
+            c = chunk(rank, Buffer.input, index)
+            # make sure the data is ready
+            for nghr in range(num_gpus):
+                if rank != nghr:
+                    c_peer = chunk(nghr, Buffer.input, index)
+                    reduce_chunks.append(c_peer)
+            c = c.group_load_reduce(reduce_chunks, recvtb=0)
+            ngbrs = [nghr for nghr in range(num_gpus) if nghr != rank]
+            c.group_store(ngbrs, sendtb=0)
+        assert Check()
+    lowered_prgm = prgm.lower()
+    for gpu in lowered_prgm.gpus:
+        for tb in gpu.threadblocks:
+            assert len(tb.ops) == 1
+            assert tb.ops[0].inst == MscclppInstruction.group_load_reduce_store
+
+
 def test_routines_allgather_ring_inplace():
     size = 4
     topology = fully_connected(size)

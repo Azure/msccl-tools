@@ -20,6 +20,8 @@ _local_src_insts_mscclpp: set = {
     Instruction.reduce_packet,
     Instruction.reduce_send,
     Instruction.reduce_send_packet,
+    Instruction.group_load_reduce_store,
+    Instruction.group_store,
 }
 _local_dst_insts_mscclpp: set = {
     Instruction.get,
@@ -33,12 +35,15 @@ _local_dst_insts_mscclpp: set = {
     Instruction.reduce_send,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
+    Instruction.group_load_reduce_store,
+    Instruction.group_load_reduce,
 }
 
 _insts_no_need_sync_barrier: set = {
     Instruction.copy_packet,
     Instruction.reduce_packet,
     Instruction.reduce_send_packet,
+    Instruction.barrier,
 }
 
 
@@ -121,8 +126,17 @@ def ir_to_json(program: Program):
                     new_ops.append(op)
                     continue
                 # Expand extra dependencies into nop operations
+                nop = Op(Instruction.nop, -1, None, None, [])
                 for i, dep in enumerate(op.depends):
-                    new_ops.append(Op(Instruction.nop, -1, None, None, [dep]))
+                    # barrier already syncs all threads
+                    if dep.inst != Instruction.barrier:
+                        nop.depends.append(dep)
+                if len(new_ops) > 0 and (
+                    new_ops[-1].inst == Instruction.barrier or new_ops[-1].inst == Instruction.nop
+                ):
+                    new_ops[-1].depends.extend(nop.depends)
+                elif len(nop.depends) > 0:
+                    new_ops.append(nop)
                 new_ops.append(op)
             tb.ops = new_ops
 
@@ -148,19 +162,31 @@ def dump_to_json(program: Program):
 
     def get_channel_ids(chunk_list, tb_channel_dict, src_buffer, dst_buffer, chan_type):
         channel_ids = []
-        for c in chunk_list:
-            key = (src_buffer, dst_buffer, chan_type)
+        key = (src_buffer, dst_buffer, chan_type)
+        if chan_type == ChannelType.nvls:
+            ranks = []
+            for c in chunk_list:
+                ranks.append(c.rank)
             channel_ids.extend(
-                [
-                    {"id": id, "off": c.index}
-                    for id, ele in enumerate(tb_channel_dict[key]["connectedTo"])
-                    if ele == c.rank
-                ]
+                [{"id": id} for id, ele in enumerate(tb_channel_dict[key]["connectedTo"]) if set(ele) == set(ranks)]
             )
+        else:
+            for c in chunk_list:
+                channel_ids.extend(
+                    [
+                        {"id": id, "off": c.index}
+                        for id, ele in enumerate(tb_channel_dict[key]["connectedTo"])
+                        if ele == c.rank
+                    ]
+                )
         return channel_ids
 
     def remove_empty_fields(d):
         return {k: v for k, v in d.items() if v not in [None, "", [], {}]}
+
+    max_scratch = max(gpu.scratch_chunks for gpu in program.gpus)
+    max_input = max(gpu.input_chunks for gpu in program.gpus)
+    max_output = max(gpu.output_chunks for gpu in program.gpus)
 
     for id, gpu in enumerate(program.gpus):
         gpu_instance = {
@@ -179,9 +205,27 @@ def dump_to_json(program: Program):
                 "type": type.value,
                 "connectedTo": [eles[1] for eles in channels],
             }
+            if type == ChannelType.nvls:
+                obj["connectedTo"] = [sorted(list(eles)) for eles in obj["connectedTo"]]
             gpu_instance["channels"].append(obj)
         gpu_instance["channels"] = list(filter(lambda x: x["type"] != "none", gpu_instance["channels"]))
         gpu_instance["channels"] = sorted(gpu_instance["channels"], key=lambda x: (x["srcbuff"], x["dstbuff"]))
+
+        # render for GPU NVLS channels
+        for i, chan in enumerate(gpu_instance["channels"]):
+            if chan["type"] == "nvls":
+                buff = chan["srcbuff"]
+                buffer_size = (
+                    max_input
+                    if buff == Buffer.input.value
+                    else max_output if buff == Buffer.output.value else max_scratch
+                )
+                gpu_instance["channels"][i] = {
+                    "buff": chan["srcbuff"],
+                    "type": chan["type"],
+                    "rankGroups": [{"size": buffer_size, "ranks": ranks} for ranks in chan["connectedTo"]],
+                }
+
         for tb in gpu.threadblocks:
             if tb.id < 0:
                 continue
@@ -196,8 +240,9 @@ def dump_to_json(program: Program):
                     "chanIds": [id for id, ele in enumerate(channels) if ele[0] == tb.id],
                     "connectedTo": [ele[1] for ele in channels if ele[0] == tb.id],
                 }
-                tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
-                tb_channels.append(obj)
+                if len(obj["chanIds"]) > 0:
+                    tb_channel_dict[(srcBuffer, dstBuffer, type)] = obj
+                    tb_channels.append(obj)
             tb_channels = filter(lambda x: x["type"] != "none", tb_channels)
             tb_channels = sorted(tb_channels, key=lambda x: (x["srcbuff"], x["dstbuff"]))
             for op in tb.ops:
@@ -258,6 +303,8 @@ def dump_to_json(program: Program):
                         "name": op.inst.value,
                         "deps": list(map(lambda dep: {"tb": dep.tb, "step": dep.step}, op.depends)),
                     }
+                elif op.inst == Instruction.barrier:
+                    instr = {"name": op.inst.value, "nthread_blocks": len(op.extra["tb_list"]), "barrier_id": op.extra["barrier_id"]}
                 elif (
                     op.inst == Instruction.put
                     or op.inst == Instruction.put_packet
@@ -282,7 +329,16 @@ def dump_to_json(program: Program):
                 ):
                     src = op.src
                     dst = op.dst
-                if op.inst != Instruction.nop:
+                elif op.inst == Instruction.group_load_reduce_store:
+                    src = op.src
+                    dst = op.dst
+                    src_channel_ids = get_channel_ids(
+                        op.srcs, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                    )
+                    dst_channel_ids = get_channel_ids(
+                        op.dsts, tb_channel_dict, op.src.buffer, op.dst.buffer, op.channel_type
+                    )
+                if op.inst != Instruction.nop and op.inst != Instruction.barrier:
                     instr = {
                         "name": op.inst.value,
                         "i_buff": i_buff,
@@ -315,11 +371,13 @@ def dump_to_json(program: Program):
         gpus.append(gpu_instance)
     obj = {
         "name": program.name,
-        "colletive": program.collective,
+        "collective": program.collective,
         "protocol": program.protocol,
         "inplace": program.inplace,
         "gpus": gpus,
         "num_threads_per_block": program.num_threads_per_block,
         "use_double_scratch_buffer": program.use_double_scratch_buffer,
+        "min_message_size": program.min_message_size,
+        "max_message_size": program.max_message_size,
     }
     return json.dumps(obj, indent=2)
