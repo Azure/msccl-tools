@@ -103,10 +103,9 @@ class AllGather(Collective):
             for r in range(self.num_ranks):
                 input_buffer = [None] * self.chunk_factor
                 output_buffer = [None] * (self.num_ranks * self.chunk_factor)
-                if not self.create_all_chunks:
-                    for ch in range(self.chunk_factor):
-                        input_buffer[ch] = Chunk(r, ch, -1, r * self.chunk_factor + ch)
-                else:
+                for ch in range(self.chunk_factor):
+                    input_buffer[ch] = Chunk(r, ch, -1, r * self.chunk_factor + ch)
+                if self.create_all_chunks:
                     for rank in range(self.num_ranks):
                         for ch in range(self.chunk_factor):
                             output_buffer[rank * self.chunk_factor + ch] = Chunk(rank, ch, -1, rank * self.chunk_factor + ch)
