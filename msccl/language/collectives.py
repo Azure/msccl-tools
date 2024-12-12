@@ -110,20 +110,18 @@ class Broadcast(Collective):
         correct = True
         buf = Buffer.output
         for r in range(self.num_ranks):
-            output = prog.buffers[r][buf]
-            for i in range(self.num_ranks):
-                for ch in range(self.chunk_factor):
-                    index = ch
-                    chunk = output[index]
-                    if chunk is None:
-                        print(f"Rank {r} chunk {index} is incorrect should be ({i}, {ch}) given None")
-                        correct = False
-                    elif chunk.origin_rank != i or chunk.origin_index != ch:
-                        print(
-                            f"Rank {r} chunk {index} is incorrect should be ({i}, {ch}) given ({chunk.origin_rank}, {chunk.origin_index})"
-                        )
-                        correct = False
+            output = prog.buffers[0][buf]
+            for ch in range(self.chunk_factor):
+                index = ch
+                chunk = output[index]
+                if chunk is None:
+                    print(f"Rank {r} chunk {index} is incorrect should be ({i}, {ch}) given None")
+                    correct = False
+                elif chunk.origin_rank != self.root or chunk.origin_index != ch:
+                    print(f"Rank {r} chunk {index} is incorrect should be ({self.root}, {ch}) given ({chunk.origin_rank}, {chunk.origin_index})")
+                    correct = False
         return correct
+
 
     def get_buffer_index(self, rank, buffer, index):
         # For inplace Broadcast, the input buffer points into the output buffer
