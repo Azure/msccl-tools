@@ -76,9 +76,6 @@ class Broadcast(Collective):
     def __init__(self, num_ranks, chunk_factor, inplace, root, create_all_chunks=False):
         Collective.__init__(self, num_ranks, chunk_factor, inplace, root)
         self.name = "broadcast"
-        # This flag is a temporary solution, which initialize all the chuncks only for inputbuffer
-        # In this future we need to remove this flag and always initialize all the chunks
-        self.create_all_chunks = create_all_chunks
 
     # Initializes input buffer for an broadcast
     def init_buffers(self):
@@ -101,7 +98,7 @@ class Broadcast(Collective):
                 if r==self.root:
                     for ch in range(self.chunk_factor):
                         input_buffer[ch] = Chunk(self.root, ch, -1, ch)
-                buffers = {Buffer.input: input_buffer, Buffer.output: output_buffer} # add if statement
+                buffers = {Buffer.input: input_buffer, Buffer.output: output_buffer} 
                 rank_buffers.append(buffers)
         return rank_buffers
 
@@ -124,7 +121,6 @@ class Broadcast(Collective):
 
 
     def get_buffer_index(self, rank, buffer, index):
-        # For inplace Broadcast, the input buffer points into the output buffer
         return buffer, index
 
 class AllGather(Collective):
