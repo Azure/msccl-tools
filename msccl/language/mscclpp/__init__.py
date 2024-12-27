@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 from dataclasses import dataclass
-from msccl.collectives import Collective
+from msccl.language.collectives import Collective
 from msccl.language.buffer import *
 from msccl.language.types import ChannelType, ChunkRef, ReplicationPolicy, Threadblock
 from msccl.language.mscclpp.ir import *

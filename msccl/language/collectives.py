@@ -1,4 +1,6 @@
-from msccl.language import *
+
+from msccl.language.buffer import Buffer
+from msccl.language.chunk import Chunk, ReduceChunk
 
 
 class Collective:
