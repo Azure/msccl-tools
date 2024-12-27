@@ -3,7 +3,6 @@
 
 
 from dataclasses import dataclass
-from msccl.language.ir import *
 
 @dataclass
 class Chunk:

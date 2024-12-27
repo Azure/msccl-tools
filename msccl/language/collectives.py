@@ -1,5 +1,3 @@
-from dataclasses import dataclass, field
-from msccl.language.ir import Buffer
 from msccl.language import *
 
 

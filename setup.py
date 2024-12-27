@@ -7,13 +7,8 @@ setup(
     name='msccl',
     version='2.3.0',
     packages=find_packages(),
-    entry_points={
-        'console_scripts': [
-            'msccl = msccl.__main__:main',
-        ],
-    },
-    scripts = [],
     install_requires=[
+        # Add your dependencies here
     ],
     python_requires='>=3.8',
 )
