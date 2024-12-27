@@ -3,12 +3,11 @@
 
 from msccl.collectives import Collective
 from msccl.language.buffer import *
-from msccl.language.types import ChannelType
+from msccl.language.types import ChannelType, ReplicationPolicy
 from msccl.language.mscclpp.ir import *
 from msccl.language.mscclpp.instruction_dag import MscclppInstructionDAG
 from msccl.language.mscclpp.rank import Rank
 from msccl.language.tb_assignment import *
-from msccl.topologies.topology import Topology
 
 _current_program = None
 
@@ -28,8 +27,8 @@ class MSCCLPPProgram:
     def __init__(
         self,
         name: str,
-        topo: Topology,
         collective: Collective,
+        num_ranks: int,
         instances: int,
         protocol: str = "Simple",
         instr_fusion: bool = True,
@@ -40,9 +39,8 @@ class MSCCLPPProgram:
         max_message_size: int = 2**64 - 1,
     ):
         self.name = name
-        self.topo = topo
         self.collective = collective
-        self.num_ranks = topo.num_nodes()
+        self.num_ranks = num_ranks
         self.instances = instances
         self.protocol = protocol
         self.instr_fusion = instr_fusion
@@ -228,8 +226,6 @@ class Ref(ChunkRef):
         assert self.rank != dst, "Cannot put to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
-        # Direct put
-        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.apply_send(self.rank, self.buffer, self.index, dst, buffer, index, self.size)
         if use_packet:
@@ -268,8 +264,6 @@ class Ref(ChunkRef):
         assert sender != receiver, "Cannot get from the same rank"
         buffer, index = self._get_buffer_index(src, buffer, index)
 
-        # Direct get
-        assert self.prog.topo.link(self.rank, src) or src == self.rank, f"No link from {self.rank} to {src}"
         src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
 
         self.prog.apply_send(src, buffer, index, self.rank, self.buffer, self.index, self.size)
@@ -284,8 +278,6 @@ class Ref(ChunkRef):
         assert sender != receiver, "Cannot signal to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
-        # Direct signal
-        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.instr_dag.add_signal(sender, self, dst_chunkref, sendtb, chan_type)
 
@@ -297,7 +289,6 @@ class Ref(ChunkRef):
         assert sender != receiver, "Cannot flush to the same rank"
         buffer, index = self._get_buffer_index(dst, buffer, index)
 
-        assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
         dst_chunkref = self.prog.get_ref(dst, buffer, index, self.size)
         self.prog.instr_dag.add_flush(sender, self, dst_chunkref, sendtb)
 
@@ -307,8 +298,6 @@ class Ref(ChunkRef):
         assert sender != receiver, "Cannot wait on the same rank"
         buffer, index = self._get_buffer_index(src, buffer, index)
 
-        # Direct wait
-        assert self.prog.topo.link(self.rank, src) or src == self.rank, f"No link from {self.rank} to {src}"
         src_chunkref = self.prog.get_ref(src, buffer, index, self.size)
         self.prog.instr_dag.add_wait(receiver, self, src_chunkref, recvtb, chan_type)
 
@@ -337,7 +326,7 @@ class Ref(ChunkRef):
     def _reduce(self, other_chunkref, recvtb=-1, channel_type=ChannelType.sm, use_packet=False):
         dst = self.rank
         src = other_chunkref.rank
-        assert self.prog.topo.link(src, dst) or src == dst, f"No link from {src} to {dst}"
+
         self.prog.apply_reduce(
             src, other_chunkref.buffer, other_chunkref.index, dst, self.buffer, self.index, self.size
         )
@@ -401,7 +390,7 @@ class Ref(ChunkRef):
         for dst in dsts:
             # Direct linked
             buffer, index = self._get_buffer_index(dst, buffer, index)
-            assert self.prog.topo.link(self.rank, dst) or dst == self.rank, f"No link from {self.rank} to {dst}"
+
             assert self.buffer == buffer, "Group store only supports chunks with the same buffer"
             assert (
                 self.rank // nrank_per_node == dst // nrank_per_node

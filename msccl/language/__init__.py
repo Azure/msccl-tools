@@ -3,7 +3,6 @@
 
 from msccl.language.ir import *
 from msccl.language.passes import *
-from msccl.language.tb_assignment import *
 from msccl.language.chunk import *
 from msccl.language.buffer import *
 from msccl.language.instruction_dag import *

@@ -41,6 +41,8 @@ def allreduce_ring(size, instances):
                 prev_rank = (index + step - 1) % size
                 c = chunk(rank, Buffer.input, (index + size - 1) % size)
                 c.wait(prev_rank, Buffer.input, (index + size - 1) % size, 0)
+        
+        get_rank_ref()
 
         Json()
         Check()

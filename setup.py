@@ -12,16 +12,8 @@ setup(
             'msccl = msccl.__main__:main',
         ],
     },
-    scripts = [
-        'msccl/autosynth/msccl_ndv2_launcher.sh'
-    ],
+    scripts = [],
     install_requires=[
-        'z3-solver',
-        'argcomplete',
-        'lxml',
-        'humanfriendly',
-        'tabulate',
-        'igraph'
     ],
     python_requires='>=3.8',
 )

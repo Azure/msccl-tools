@@ -3,19 +3,17 @@
 
 import argparse
 from msccl.language import *
-from msccl.topologies import *
 from msccl.language.collectives import SendRecv
 
 
 def send_recv(instances):
     size = 2
     chunksperloop = 1
-    topology = fully_connected(size)
     collective = SendRecv(size, chunksperloop, False)
     with MSCCLPPProgram(
         "send_recv",
-        topology,
         collective,
+        size,
         instances,
         protocol="LL",
         use_double_scratch_buffer=True,
