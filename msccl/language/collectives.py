@@ -6,11 +6,9 @@ class Collective:
 
     def __init__(self, num_ranks, chunk_factor, inplace, root=0, num_ranks_per_node=-1, **kwargs):
         self.num_ranks = num_ranks
-        self.root=root
         self.chunk_factor = chunk_factor
         self.inplace = inplace
         self.name = "custom"
-        self.root=root
         # Devide the buffer into num_chunk_groups group
         if num_ranks_per_node == -1:
             self.num_ranks_per_node = num_ranks
@@ -76,6 +74,7 @@ class Broadcast(Collective):
     def __init__(self, num_ranks, chunk_factor, inplace, root, create_all_chunks=False):
         Collective.__init__(self, num_ranks, chunk_factor, inplace, root)
         self.name = "broadcast"
+        self.root=root
 
     # Initializes input buffer for an broadcast
     def init_buffers(self):
