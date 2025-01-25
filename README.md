@@ -1,5 +1,7 @@
 # MSCCL-tools
 
+***This repository is deprecated. It has been merged into [mscclpp](https://github.com/microsoft/mscclpp). All new features and updates will be supported in the new repository.***
+
 This repo contains the developer tool stack of the [Microsoft Collective Communication Library
 (MSCCL)](https://github.com/microsoft/msccl), a platform for programmable communication on GPUs. Algorithms created with
 MSCCL can:
